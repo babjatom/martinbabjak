@@ -17,6 +17,9 @@
 2. **Read CLAUDE.md.** Before writing any code, read the `CLAUDE.md` file at the repo root.
    All decisions must comply with the conventions and rules defined there.
 
+   Issues labeled `vercel-hosting` use workflow `agent-vercel.yml` and task
+   `.github/agent-tasks/vercel-hosting.md` instead of this file.
+
 3. **Create a feature branch** named `agent/issue-{N}-{short-slug}`.
 
 4. **Write tests first.** Following the TDD convention in CLAUDE.md, write tests for the

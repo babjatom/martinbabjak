@@ -1,0 +1,38 @@
+name: Vercel hosting
+description: Epic — migrate to Vercel (Postgres + Next Route Handlers). Triggers agent with label vercel-hosting.
+title: Vercel hosting
+labels:
+  - vercel-hosting
+body:
+  - type: markdown
+    value: |
+      Assign **`github-actions[bot]`** or comment **`@claude`** with the phase to run.
+      The agent uses `.github/agent-tasks/vercel-hosting.md`. One phase per run.
+
+  - type: checkboxes
+    id: prerequisites
+    attributes:
+      label: Human prerequisites (before agent phases that need Postgres/CI)
+    options:
+      - label: Phase 0 on main — CLAUDE.md migration section
+      - label: ci.yml has Postgres service + DATABASE_URL for tests (human PR)
+      - label: Hosted DB + migrations/seed documented
+
+  - type: dropdown
+    id: phase
+    attributes:
+      label: Phase for the next agent run
+      description: Agent must implement ONLY this phase
+    options:
+      - Phase 1 — DB interface; api still SQLite; all tests green
+      - Phase 2 — Postgres adapter + add concurrency.postgres.test.ts
+      - Phase 3 — Route Handlers (specify resource in comment)
+      - Phase 4 — Cutover (only if 0–3 done)
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: Notes for this run
+      description: e.g. "@claude Phase 1 only" or which Route Handler resource for Phase 3
+    validations:
+      required: false

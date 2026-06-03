@@ -101,3 +101,22 @@ Booking object: `{ id, slot_id, user_id, idempotency_key, status, created_at, ca
 - Do NOT add `[skip ci]` to commit messages
 - Do NOT modify `.github/workflows/ci.yml`
 - PRs target `main` — never self-merge
+
+## Vercel hosting migration (epic)
+
+Triggered by GitHub issues with label `vercel-hosting` and task file
+`.github/agent-tasks/vercel-hosting.md` (workflow `agent-vercel.yml`). Implement **one phase per PR**.
+
+| Phase | Scope | Stack notes |
+|-------|--------|-------------|
+| **0** | Human only: this section, Postgres in CI, hosted DB | Agents do not edit `ci.yml` |
+| **1** | Domain behind a DB interface; `api` keeps SQLite | Existing invariant unchanged |
+| **2** | Postgres adapter; **add** `concurrency.postgres.test.ts` | Partial unique index on `(slot_id) WHERE status = 'active'`; map unique violations to 409 |
+| **3** | Next Route Handlers under `web/src/app/api/` | `export const runtime = 'nodejs'` for DB routes |
+| **4** | Same-origin `/api`, remove Express / file SQLite | Update tests and file map when cutover completes |
+
+**Invariant (all phases):** exactly one active booking per slot; parallel race tests use `Promise.all` and expect statuses **201** and **409** (order-independent).
+
+**Concurrency gate file:** `api/src/__tests__/concurrency.test.ts` stays until Phase 4 cutover. Until then: no removals, skips, or weakening tests; additions allowed in other files.
+
+**Phase 2+ Postgres booking:** use a transaction, re-check idempotency inside the transaction, rely on the partial unique index so concurrent inserts for the same slot yield one success and one **409** (`SLOT_ALREADY_BOOKED`).

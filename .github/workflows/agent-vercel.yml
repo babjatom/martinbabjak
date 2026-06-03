@@ -1,4 +1,4 @@
-name: Claude Code Agent
+name: Claude Code Agent (Vercel hosting)
 
 on:
   issues:
@@ -7,9 +7,9 @@ on:
     types: [created]
 
 jobs:
-  claude-agent:
+  claude-agent-vercel:
     if: >
-      !contains(join(github.event.issue.labels.*.name, ','), 'vercel-hosting') &&
+      contains(join(github.event.issue.labels.*.name, ','), 'vercel-hosting') &&
       (
         (github.event_name == 'issues' &&
          github.event.assignee.login == 'github-actions[bot]') ||
@@ -34,4 +34,4 @@ jobs:
         uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          task_file: .github/agent-tasks/implement-feature.md
+          task_file: .github/agent-tasks/vercel-hosting.md

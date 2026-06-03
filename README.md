@@ -46,7 +46,11 @@ racing at the transaction boundary.
 
 ## Agentic Workflow
 
-Assign an issue to `github-actions[bot]` or mention `@claude` in a comment. The agent:
+Assign an issue to `github-actions[bot]` or mention `@claude` in a comment.
+
+**Vercel hosting epic:** use the **Vercel hosting** issue template (label `vercel-hosting`), then assign the bot or comment `@claude` with the phase to run. See `CLAUDE.md` → *Vercel hosting migration*.
+
+The agent:
 1. Reads the issue and `CLAUDE.md`
 2. Writes tests first, then implements
 3. Opens a PR — it cannot merge its own PR
