@@ -1,0 +1,103 @@
+# CLAUDE.md — Coding Constitution
+
+Read this before making any changes. These rules are non-negotiable constraints.
+
+## Stack
+
+| Layer | Tech |
+|-------|------|
+| API runtime | Node.js 20, TypeScript 5, strict mode |
+| HTTP | Express 4 |
+| Database | SQLite via `better-sqlite3` (synchronous — do NOT swap for async driver) |
+| Validation | Zod |
+| Tests | Vitest + supertest |
+| Frontend | Next.js 14, React 18, Tailwind CSS 3 |
+
+## File Map
+
+```
+api/src/
+  db.ts        — SQLite init, migrations, setDb/createInMemoryDb testability seam
+  slots.ts     — Slot model, seed data, SlotNotFoundError
+  config.ts    — PageConfig CRUD
+  bookings.ts  — createBooking / getBooking / cancelBooking (core invariant lives here)
+  routes.ts    — Thin Express handlers — dispatch errors, delegate to service functions
+  app.ts       — createApp() factory (no listen)
+  server.ts    — Entry point: seedSlots() then app.listen()
+  __tests__/   — All test files
+
+web/src/
+  types.ts             — Shared TypeScript interfaces
+  app/page.tsx         — Server component, fetches config + slots
+  components/          — Client components
+```
+
+## THE INVARIANT — Never Break This
+
+**Exactly one active booking per slot at a time.**
+
+Enforced in `api/src/bookings.ts` via `bookSlot.immediate()`. The `immediate()` call
+uses `BEGIN IMMEDIATE`, acquiring the SQLite write lock at transaction start. Two
+concurrent requests for the same slot serialize here: the second sees the first's
+committed booking and throws `SlotAlreadyBookedError`.
+
+Do NOT:
+- Change `.immediate()` to `.deferred()` or plain `bookSlot()`
+- Add code paths that bypass the transaction
+- Replace `better-sqlite3` with an async SQLite driver
+
+## THE CONCURRENCY GATE — Do Not Touch
+
+`api/src/__tests__/concurrency.test.ts` is a hard gate. Do NOT:
+- Remove any `it(...)` block from this file
+- Add `.skip` or `.todo` to any test in this file
+- Make the `Promise.all` calls sequential
+- Change the expected status codes (201 / 409)
+
+You may add new concurrency tests (additions only). Never deletions or skips.
+This file is explicitly checked by the agent task template in
+`.github/agent-tasks/implement-feature.md`.
+
+## Error Codes
+
+| Status | Code |
+|--------|------|
+| 400 | `VALIDATION_ERROR` |
+| 404 | `SLOT_NOT_FOUND`, `BOOKING_NOT_FOUND` |
+| 409 | `SLOT_ALREADY_BOOKED`, `BOOKING_ALREADY_CANCELLED` |
+| 500 | `INTERNAL_ERROR` |
+
+## Response Shapes
+
+```
+POST /api/bookings   → { booking } — 201 (new) or 200 (idempotent)
+GET  /api/bookings/:id → { booking }
+DELETE /api/bookings/:id → { booking }
+GET  /api/slots      → { slots }
+POST /api/slots      → { slot } — 201
+GET  /api/config     → { config }
+PUT  /api/config     → { config }
+```
+
+Booking object: `{ id, slot_id, user_id, idempotency_key, status, created_at, cancelled_at }`
+
+## TypeScript Rules
+
+- No `any` — use `unknown` and narrow with type guards or Zod
+- Explicit return type on every function
+- `noUncheckedIndexedAccess` is on — handle `T | undefined` from array/object access
+- No floating promises — always `await` or explicitly `void`
+
+## Testing Rules
+
+- Write tests before implementing (TDD)
+- `setDb(createInMemoryDb())` in `beforeEach` — never share database state between tests
+- New route → at minimum: happy path + validation error + not-found case
+- Test files live in `api/src/__tests__/`
+
+## CI Rules
+
+- All five CI jobs must pass before a PR merges: `api-typecheck`, `api-lint`, `api-test`, `web-typecheck`, `web-build`
+- Do NOT add `[skip ci]` to commit messages
+- Do NOT modify `.github/workflows/ci.yml`
+- PRs target `main` — never self-merge
