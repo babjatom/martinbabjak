@@ -16,7 +16,8 @@ Migrate toward **everything on Vercel**: Next.js Route Handlers in `web`, hosted
 
 1. **Read the issue.** Implement **only** the checked phase. If Phase 0 prerequisites are unchecked, comment on the issue and stop — do not guess Postgres/CI setup.
 
-2. **Read `CLAUDE.md`.** All code must comply. During migration, follow the migration section for the active phase.
+2. **Read `CLAUDE.md`** and **`.github/agent-tasks/commit-conventions.md`.** Follow the
+   migration section for the active phase.
 
 3. **Create a branch** `agent/issue-{N}-vercel-hosting-{phase-slug}`.
 
@@ -29,9 +30,11 @@ Migrate toward **everything on Vercel**: Next.js Route Handlers in `web`, hosted
    - Do not remove, skip, or weaken tests in `api/src/__tests__/concurrency.test.ts` unless CLAUDE.md on `main` explicitly allows cutover.
    - New Postgres race tests: separate file, same `Promise.all` + status expectations.
 
-7. **Open a PR** to `main`: what phase, files changed, tests, how to run locally. Use `Part of #N` unless the issue says this phase `Closes #N`.
+7. **Commit** with **Conventional Commits**; **PR title** must match (e.g. `feat(api): …`).
 
-8. **Comment on the issue** with the PR link.
+8. **Open a PR** to `main`: what phase, files changed, tests, how to run locally. Use `Part of #N` unless the issue says this phase `Closes #N`.
+
+9. **Comment on the issue** with the PR link.
 
 ## Success criteria
 
@@ -39,6 +42,7 @@ Migrate toward **everything on Vercel**: Next.js Route Handlers in `web`, hosted
 - [ ] Phase scope only — no Express removal / no `ci.yml` / no Vercel dashboard work unless the issue explicitly assigns Phase 4 and prerequisites are met
 - [ ] Booking invariant preserved or strengthened (partial unique index on Postgres when in Phase 2+)
 - [ ] PR targets `main`; human merges
+- [ ] Commits and PR title follow Conventional Commits
 
 ## Hard constraints
 

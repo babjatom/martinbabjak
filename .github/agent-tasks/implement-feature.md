@@ -14,11 +14,9 @@
    described in the issue. If requirements are ambiguous, comment on the issue asking for
    clarification before writing code.
 
-2. **Read CLAUDE.md.** Before writing any code, read the `CLAUDE.md` file at the repo root.
-   All decisions must comply with the conventions and rules defined there.
-
-   Issues labeled `vercel-hosting` use workflow `agent-vercel.yml` and task
-   `.github/agent-tasks/vercel-hosting.md` instead of this file.
+2. **Read CLAUDE.md** and **`.github/agent-tasks/commit-conventions.md`.** All decisions
+   must comply. Issues labeled `vercel-hosting` use `agent-vercel.yml` and
+   `vercel-hosting.md` instead of this file.
 
 3. **Create a feature branch** named `agent/issue-{N}-{short-slug}`.
 
@@ -31,13 +29,16 @@
 6. **Verify the concurrency gate is unmodified.** Read `api/src/__tests__/concurrency.test.ts`
    and confirm it is unchanged from the main branch.
 
-7. **Open a pull request** from your branch to `main`. The PR description must include:
+7. **Commit** using **Conventional Commits** (see `commit-conventions.md`). Every commit
+   message and the **PR title** must follow `type(scope): subject`.
+
+8. **Open a pull request** from your branch to `main`. The PR description must include:
    - What was implemented
    - Which files changed and why
    - Test coverage added
    - `Closes #N`
 
-8. **Comment on the issue** with a link to the PR.
+9. **Comment on the issue** with a link to the PR.
 
 ## Success Criteria
 
@@ -48,6 +49,7 @@
 - [ ] `npm run lint` exits 0 in `api/`
 - [ ] `npm run build` exits 0 in `web/` (if web files were changed)
 - [ ] PR opens against `main` with a clear description
+- [ ] Commits and PR title follow Conventional Commits
 - [ ] Original issue is referenced (`Closes #N`)
 
 ## Hard Constraints

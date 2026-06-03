@@ -74,6 +74,25 @@ jobs:
           assignee_trigger: "github-actions[bot]"
           label_trigger: "vercel-hosting"
           trigger_phrase: "@claude"
+          prompt: |
+            Repository: ${{ github.repository }}
+            Issue #${{ github.event.issue.number }}: ${{ github.event.issue.title }}
+
+            Issue body:
+            ${{ github.event.issue.body }}
+
+            Triggering comment (if any):
+            ${{ github.event.comment.body }}
+
+            Read and follow:
+            - CLAUDE.md (Vercel hosting migration section)
+            - .github/agent-tasks/vercel-hosting.md
+            - .github/agent-tasks/commit-conventions.md
+
+            Implement ONLY the phase described in the issue for this run.
+            Every git commit message and the PR title MUST follow Conventional Commits.
+            Open a PR targeting main. Do not merge.
           claude_args: |
+            --model claude-sonnet-4-6
             --max-turns 30
-            --system-prompt "Before making changes, read CLAUDE.md and .github/agent-tasks/vercel-hosting.md. Follow the Vercel hosting migration section and the issue body. Implement only the phase described in the issue for this run. Use TDD. Open a PR targeting main; do not merge. Do not modify .github/workflows/ci.yml. Do not remove, skip, or weaken tests in api/src/__tests__/concurrency.test.ts unless CLAUDE.md on main explicitly allows cutover."
+            --system-prompt "Follow CLAUDE.md and vercel-hosting.md. One phase per PR. Conventional Commits for all commits and PR title. Do not modify .github/workflows/ci.yml. Do not weaken concurrency.test.ts unless CLAUDE.md allows cutover."

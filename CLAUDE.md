@@ -95,6 +95,17 @@ Booking object: `{ id, slot_id, user_id, idempotency_key, status, created_at, ca
 - New route → at minimum: happy path + validation error + not-found case
 - Test files live in `api/src/__tests__/`
 
+## Git — Conventional Commits
+
+Required for **all agent PRs** and expected for human contributions. Full rules:
+`.github/agent-tasks/commit-conventions.md`.
+
+- Format: `type(optional-scope): imperative subject` (lowercase, no trailing period).
+- Types: `feat`, `fix`, `docs`, `test`, `refactor`, `chore`, `ci`, `build`, `style`, `perf`.
+- Scopes: prefer `api`, `web`, `ci`, `agent` when applicable.
+- **PR title** must match Conventional Commits (same as primary commit if squashing).
+- Logical, atomic commits; never `[skip ci]` in messages.
+
 ## CI Rules
 
 - All five CI jobs must pass before a PR merges: `api-typecheck`, `api-lint`, `api-test`, `web-typecheck`, `web-build`
