@@ -24,6 +24,8 @@ jobs:
       contents: write
       pull-requests: write
       issues: write
+      id-token: write
+      actions: read
 
     steps:
       - uses: actions/checkout@v4
@@ -34,4 +36,8 @@ jobs:
         uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          task_file: .github/agent-tasks/implement-feature.md
+          assignee_trigger: "github-actions[bot]"
+          trigger_phrase: "@claude"
+          claude_args: |
+            --max-turns 30
+            --system-prompt "Before making changes, read CLAUDE.md at the repository root and .github/agent-tasks/implement-feature.md. Follow both exactly. Implement only what the GitHub issue describes. Use TDD for API changes. Open a PR targeting main with a clear description; do not merge. Do not modify api/src/__tests__/concurrency.test.ts except additions allowed by CLAUDE.md. Do not modify .github/workflows/ci.yml."

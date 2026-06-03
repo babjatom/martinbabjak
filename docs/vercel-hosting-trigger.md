@@ -2,8 +2,10 @@
 
 ## Prerequisites
 
-- Repository secret `ANTHROPIC_API_KEY` is set.
-- Changes on `main`: `agent-vercel.yml`, label `vercel-hosting`, task `vercel-hosting.md`.
+- Repository secret **`ANTHROPIC_API_KEY`** (Settings → Secrets and variables → Actions).
+- **[Claude GitHub App](https://github.com/apps/claude)** installed on this repo (recommended for PRs/comments).
+- Workflows use `anthropics/claude-code-action@v1` with `id-token: write` (not Vercel).
+- Issue label **`vercel-hosting`** for the Vercel epic workflow.
 
 ## Start a run
 

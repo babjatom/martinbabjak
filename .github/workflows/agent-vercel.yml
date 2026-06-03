@@ -24,6 +24,8 @@ jobs:
       contents: write
       pull-requests: write
       issues: write
+      id-token: write
+      actions: read
 
     steps:
       - uses: actions/checkout@v4
@@ -34,4 +36,9 @@ jobs:
         uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          task_file: .github/agent-tasks/vercel-hosting.md
+          assignee_trigger: "github-actions[bot]"
+          label_trigger: "vercel-hosting"
+          trigger_phrase: "@claude"
+          claude_args: |
+            --max-turns 30
+            --system-prompt "Before making changes, read CLAUDE.md and .github/agent-tasks/vercel-hosting.md. Follow the Vercel hosting migration section and the issue body. Implement only the phase described in the issue for this run. Use TDD. Open a PR targeting main; do not merge. Do not modify .github/workflows/ci.yml. Do not remove, skip, or weaken tests in api/src/__tests__/concurrency.test.ts unless CLAUDE.md on main explicitly allows cutover."
