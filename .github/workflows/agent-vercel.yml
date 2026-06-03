@@ -7,20 +7,51 @@ on:
     types: [created]
 
 jobs:
-  claude-agent-vercel:
-    if: >
-      contains(join(github.event.issue.labels.*.name, ','), 'vercel-hosting') &&
-      (
-        (github.event_name == 'issues' &&
-         github.event.action == 'assigned' &&
-         github.event.assignee.login == 'github-actions[bot]') ||
-        (github.event_name == 'issues' &&
-         (contains(toLower(github.event.issue.body), '@claude') ||
-          contains(toLower(github.event.issue.title), '@claude'))) ||
-        (github.event_name == 'issue_comment' &&
-         contains(toLower(github.event.comment.body), '@claude'))
-      )
+  gate:
+    runs-on: ubuntu-latest
+    outputs:
+      run: ${{ steps.eval.outputs.run }}
+    permissions:
+      issues: read
+    steps:
+      - name: Decide if Vercel agent should run
+        id: eval
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issueNumber = context.payload.issue?.number;
+            if (!issueNumber) {
+              core.setOutput('run', 'false');
+              return;
+            }
+            const { data: issue } = await github.rest.issues.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issueNumber,
+            });
+            const hasLabel = issue.labels.some(
+              (l) => l.name === 'vercel-hosting'
+            );
+            if (!hasLabel) {
+              core.setOutput('run', 'false');
+              return;
+            }
+            const commentBody = context.payload.comment?.body ?? '';
+            const issueBody = issue.body ?? '';
+            const issueTitle = issue.title ?? '';
+            const hasMention =
+              commentBody.toLowerCase().includes('@claude') ||
+              issueBody.toLowerCase().includes('@claude') ||
+              issueTitle.toLowerCase().includes('@claude');
+            const assigned =
+              context.eventName === 'issues' &&
+              context.payload.action === 'assigned' &&
+              context.payload.assignee?.login === 'github-actions[bot]';
+            core.setOutput('run', hasMention || assigned ? 'true' : 'false');
 
+  claude-agent-vercel:
+    needs: gate
+    if: needs.gate.outputs.run == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
