@@ -1,4 +1,4 @@
-import { getDb } from './db';
+import { getStore } from './store';
 
 export interface PageConfig {
   title: string;
@@ -7,10 +7,7 @@ export interface PageConfig {
 }
 
 export function getConfig(): PageConfig {
-  const db = getDb();
-  const rows = db.prepare<[], { key: string; value: string }>(
-    'SELECT key, value FROM page_config'
-  ).all();
+  const rows = getStore().getConfigRows();
   const map = Object.fromEntries(rows.map((r) => [r.key, r.value]));
   return {
     title: map['title'] ?? 'Book a Session',
@@ -20,13 +17,11 @@ export function getConfig(): PageConfig {
 }
 
 export function updateConfig(patch: Partial<PageConfig>): PageConfig {
-  const db = getDb();
-  const update = db.prepare('UPDATE page_config SET value = ? WHERE key = ?');
-  const updateMany = db.transaction(() => {
+  const store = getStore();
+  store.transaction((): void => {
     for (const [key, value] of Object.entries(patch)) {
-      if (value !== undefined) update.run(value, key);
+      if (value !== undefined) store.setConfigValue(key, value);
     }
   });
-  updateMany();
   return getConfig();
 }
