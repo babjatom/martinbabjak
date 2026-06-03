@@ -1,5 +1,5 @@
 import { randomUUID } from 'crypto';
-import { getDb } from './db';
+import { getStore } from './store';
 import { slotExistsAndActive, SlotNotFoundError } from './slots';
 
 export { SlotNotFoundError };
@@ -40,32 +40,26 @@ export function createBooking(params: {
   user_id: string;
   idempotency_key: string;
 }): { booking: Booking; created: boolean } {
-  const db = getDb();
+  const store = getStore();
 
   if (!slotExistsAndActive(params.slot_id)) {
     throw new SlotNotFoundError(params.slot_id);
   }
 
-  // Fast path: check idempotency before acquiring write lock
-  const existing = db.prepare<[string], Booking>(
-    'SELECT * FROM bookings WHERE idempotency_key = ?'
-  ).get(params.idempotency_key);
+  // Fast path: check idempotency before acquiring the write lock
+  const existing = store.findBookingByIdempotencyKey(params.idempotency_key);
   if (existing) return { booking: existing, created: false };
 
-  // BEGIN IMMEDIATE acquires the write lock at transaction start.
-  // Two concurrent requests for the same slot will serialize here:
-  // the second caller blocks until the first commits, then sees
-  // the committed booking and throws SlotAlreadyBookedError.
-  const bookSlot = db.transaction((): Booking => {
+  // store.transaction runs atomically. For SQLite it uses BEGIN IMMEDIATE,
+  // acquiring the write lock at transaction start: two concurrent requests for
+  // the same slot serialize here — the second blocks until the first commits,
+  // then sees the committed booking and throws SlotAlreadyBookedError.
+  const booking = store.transaction((): Booking => {
     // Re-check idempotency inside the transaction to close the TOCTOU gap
-    const idempotentMatch = db.prepare<[string], Booking>(
-      'SELECT * FROM bookings WHERE idempotency_key = ?'
-    ).get(params.idempotency_key);
+    const idempotentMatch = store.findBookingByIdempotencyKey(params.idempotency_key);
     if (idempotentMatch) return idempotentMatch;
 
-    const activeBooking = db.prepare<[string], { id: string }>(
-      "SELECT id FROM bookings WHERE slot_id = ? AND status = 'active'"
-    ).get(params.slot_id);
+    const activeBooking = store.findActiveBookingIdBySlot(params.slot_id);
     if (activeBooking) throw new SlotAlreadyBookedError(params.slot_id);
 
     const newBooking: Booking = {
@@ -78,44 +72,30 @@ export function createBooking(params: {
       cancelled_at: null,
     };
 
-    db.prepare(`
-      INSERT INTO bookings (id, slot_id, user_id, idempotency_key, status, created_at, cancelled_at)
-      VALUES (@id, @slot_id, @user_id, @idempotency_key, @status, @created_at, @cancelled_at)
-    `).run(newBooking);
-
+    store.insertBooking(newBooking);
     return newBooking;
   });
 
-  const booking = bookSlot.immediate();
   return { booking, created: true };
 }
 
 export function getBooking(id: string): Booking {
-  const db = getDb();
-  const booking = db.prepare<[string], Booking>(
-    'SELECT * FROM bookings WHERE id = ?'
-  ).get(id);
+  const booking = getStore().getBookingById(id);
   if (!booking) throw new BookingNotFoundError(id);
   return booking;
 }
 
 export function cancelBooking(id: string): Booking {
-  const db = getDb();
+  const store = getStore();
 
-  const cancel = db.transaction((): Booking => {
-    const booking = db.prepare<[string], Booking>(
-      'SELECT * FROM bookings WHERE id = ?'
-    ).get(id);
+  return store.transaction((): Booking => {
+    const booking = store.getBookingById(id);
     if (!booking) throw new BookingNotFoundError(id);
     if (booking.status === 'cancelled') throw new BookingAlreadyCancelledError(id);
 
     const cancelledAt = new Date().toISOString();
-    db.prepare(
-      "UPDATE bookings SET status = 'cancelled', cancelled_at = ? WHERE id = ?"
-    ).run(cancelledAt, id);
+    store.setBookingCancelled(id, cancelledAt);
 
     return { ...booking, status: 'cancelled', cancelled_at: cancelledAt };
   });
-
-  return cancel();
 }
