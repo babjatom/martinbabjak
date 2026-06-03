@@ -2,7 +2,7 @@ name: Claude Code Agent (Vercel hosting)
 
 on:
   issues:
-    types: [assigned]
+    types: [assigned, opened, edited]
   issue_comment:
     types: [created]
 
@@ -12,9 +12,13 @@ jobs:
       contains(join(github.event.issue.labels.*.name, ','), 'vercel-hosting') &&
       (
         (github.event_name == 'issues' &&
+         github.event.action == 'assigned' &&
          github.event.assignee.login == 'github-actions[bot]') ||
+        (github.event_name == 'issues' &&
+         (contains(toLower(github.event.issue.body), '@claude') ||
+          contains(toLower(github.event.issue.title), '@claude'))) ||
         (github.event_name == 'issue_comment' &&
-         contains(github.event.comment.body, '@claude'))
+         contains(toLower(github.event.comment.body), '@claude'))
       )
 
     runs-on: ubuntu-latest

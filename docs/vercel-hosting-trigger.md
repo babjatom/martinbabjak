@@ -13,7 +13,14 @@
 2. Select **Phase** in the form; add notes if needed (e.g. Phase 3 resource).
 3. Either:
    - **Assign** `github-actions[bot]`, or
-   - Comment: `@claude Implement Phase 1 only` (match the issue).
+   - Post a **comment** (not only the issue description): `@claude Implement Phase 1 only`
+
+## If the workflow shows "Skipped"
+
+- **`@claude` must include the `@`** — typing `claude` alone does not trigger.
+- Prefer a **comment** on the issue; `@claude` in the description also works after the latest workflow update (save/edit the issue).
+- Issue must have label **`vercel-hosting`** for the Vercel workflow. The default **Claude Code Agent** run will show **Skipped** on that issue — open **Claude Code Agent (Vercel hosting)** instead.
+- Re-run: add a new comment with `@claude` (editing an old comment does not fire the workflow).
 
 ## What runs
 
