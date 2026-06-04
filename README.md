@@ -46,9 +46,13 @@ racing at the transaction boundary.
 
 ## Agentic Workflow
 
-Assign an issue to `github-actions[bot]` or mention `@claude` in a comment.
+Add label **`api`** or **`web`** (one only), then trigger an agent on the issue:
 
-Add label **`api`** or **`web`** (one only) via the matching issue template, then assign the bot or comment `@claude`. Label **`infra`** is human-only. See `CLAUDE.md` → *Agent workflows*.
+- **`@claude`** in a comment → Claude Code Action on GitHub Actions
+- **`@cursor`** in a comment → Cursor Cloud Agent (needs `CURSOR_API_KEY` + GitHub linked in Cursor)
+- Assign **`github-actions[bot]`** → Claude (default if you do not use `@cursor` in the issue)
+
+Label **`infra`** is human-only. See `CLAUDE.md` → *Agent workflows*.
 
 The agent:
 1. Reads the issue and `CLAUDE.md`

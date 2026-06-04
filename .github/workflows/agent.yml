@@ -1,4 +1,4 @@
-name: Claude Code Agent
+name: Issue Agents (Claude / Cursor)
 
 on:
   issues:
@@ -11,6 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       run: ${{ steps.eval.outputs.run }}
+      provider: ${{ steps.eval.outputs.provider }}
       model: ${{ steps.eval.outputs.model }}
       max_turns: ${{ steps.eval.outputs.max_turns }}
       max_budget_usd: ${{ steps.eval.outputs.max_budget_usd }}
@@ -19,7 +20,7 @@ jobs:
     permissions:
       issues: write
     steps:
-      - name: Decide agent lane and model
+      - name: Decide agent lane and provider
         id: eval
         uses: actions/github-script@v7
         with:
@@ -44,13 +45,39 @@ jobs:
             const commentBody = context.payload.comment?.body ?? '';
             const issueBody = issue.body ?? '';
             const issueTitle = issue.title ?? '';
+
+            const pickProvider = (text) => {
+              const lower = text.toLowerCase();
+              const hasClaude = lower.includes('@claude');
+              const hasCursor = lower.includes('@cursor');
+              if (hasClaude && hasCursor) return 'conflict';
+              if (hasClaude) return 'claude';
+              if (hasCursor) return 'cursor';
+              return null;
+            };
+
+            const textHasAgentTrigger = (text) => {
+              const lower = text.toLowerCase();
+              return lower.includes('@claude') || lower.includes('@cursor');
+            };
+
+            const botAssigned =
+              context.eventName === 'issues' &&
+              context.payload.action === 'assigned' &&
+              context.payload.assignee?.login === 'github-actions[bot]';
+
+            let provider = null;
+            if (context.payload.comment?.body) {
+              provider = pickProvider(commentBody);
+            } else {
+              provider = pickProvider(`${issueTitle}\n${issueBody}`);
+            }
+
             const triggered =
-              commentBody.toLowerCase().includes('@claude') ||
-              issueBody.toLowerCase().includes('@claude') ||
-              issueTitle.toLowerCase().includes('@claude') ||
-              (context.eventName === 'issues' &&
-                context.payload.action === 'assigned' &&
-                context.payload.assignee?.login === 'github-actions[bot]');
+              textHasAgentTrigger(commentBody) ||
+              textHasAgentTrigger(issueBody) ||
+              textHasAgentTrigger(issueTitle) ||
+              botAssigned;
 
             const comment = async (body) => {
               await github.rest.issues.createComment({
@@ -66,10 +93,32 @@ jobs:
               return;
             }
 
+            if (provider === 'conflict') {
+              core.setOutput('run', 'false');
+              await comment(
+                'Use **one** agent per trigger: `@claude` or `@cursor` (not both in the same comment or issue text).'
+              );
+              return;
+            }
+
+            if (botAssigned && !provider) {
+              provider = 'claude';
+            }
+
+            if (!provider) {
+              core.setOutput('run', 'false');
+              await comment(
+                'Specify which agent to run: comment `@claude` or `@cursor` (with label `api` or `web`). Assigning the bot alone runs **Claude**.'
+              );
+              return;
+            }
+
+            core.setOutput('provider', provider);
+
             if (hasInfra) {
               core.setOutput('run', 'false');
               await comment(
-                'Issues labeled `infra` are handled by humans only — the Claude agent does not run on this lane.'
+                `Issues labeled \`infra\` are handled by humans only — neither Claude nor Cursor agents run on this lane.`
               );
               return;
             }
@@ -77,7 +126,7 @@ jobs:
             if (hasApi && hasWeb) {
               core.setOutput('run', 'false');
               await comment(
-                'Agent needs exactly one lane label: `api` or `web` (not both). Remove one label and trigger again with `@claude` or assign the bot.'
+                'Agent needs exactly one lane label: `api` or `web` (not both). Remove one label and trigger again with `@claude` or `@cursor`, or assign the bot.'
               );
               return;
             }
@@ -110,12 +159,12 @@ jobs:
 
             core.setOutput('run', 'false');
             await comment(
-              'To run the agent, add label `api` or `web` (one only). Label `infra` is human-only.'
+              'To run an agent, add label `api` or `web` (one only). Label `infra` is human-only. Then comment `@claude` or `@cursor`.'
             );
 
   claude-agent:
     needs: gate
-    if: needs.gate.outputs.run == 'true'
+    if: needs.gate.outputs.run == 'true' && needs.gate.outputs.provider == 'claude'
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
@@ -173,3 +222,167 @@ jobs:
             --permission-mode bypassPermissions
             --allowedTools "Bash,Edit,Read,Write,Glob,Grep"
             --allowedTools "Bash(npm run *),Bash(cd *),Bash(npx *),Bash(git *)"
+
+  cursor-agent:
+    needs: gate
+    if: needs.gate.outputs.run == 'true' && needs.gate.outputs.provider == 'cursor'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    concurrency:
+      group: cursor-issue-agent-${{ github.repository }}-${{ github.event.issue.number }}
+      cancel-in-progress: false
+    permissions:
+      issues: write
+    steps:
+      - name: Start Cursor Cloud Agent
+        uses: actions/github-script@v7
+        env:
+          CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
+          AGENT_TASK_FILE: ${{ needs.gate.outputs.task_file }}
+          AGENT_SYSTEM_PROMPT: ${{ needs.gate.outputs.system_prompt }}
+        with:
+          script: |
+            const issueNumber = context.payload.issue.number;
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const enqueuedLabel = 'cursor-agent-enqueued';
+
+            const comment = async (body) => {
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number: issueNumber,
+                body,
+              });
+            };
+
+            if (!process.env.CURSOR_API_KEY) {
+              await comment(
+                'Cursor agent was requested (`@cursor`) but `CURSOR_API_KEY` is not configured on this repository. Add the secret from the Cursor dashboard (Cloud → Integrations).'
+              );
+              core.setFailed('CURSOR_API_KEY missing');
+              return;
+            }
+
+            const { data: issue } = await github.rest.issues.get({
+              owner,
+              repo,
+              issue_number: issueNumber,
+            });
+            const labelNames = issue.labels.map((l) =>
+              typeof l === 'string' ? l : l.name
+            );
+            if (labelNames.includes(enqueuedLabel)) {
+              await comment(
+                `A Cursor cloud agent was already enqueued for this issue (label \`${enqueuedLabel}\`). Open the previous agent run in Cursor or remove the label to trigger again.`
+              );
+              return;
+            }
+
+            const taskFile = process.env.AGENT_TASK_FILE ?? 'implement-feature.md';
+            const systemPrompt =
+              process.env.AGENT_SYSTEM_PROMPT ??
+              'Follow CLAUDE.md. Do not modify .github/workflows/ci.yml.';
+            const issueTitle = issue.title ?? '';
+            const issueBody = issue.body ?? '(no body)';
+            const issueUrl = issue.html_url;
+            const branchName = `agent/issue-${issueNumber}`;
+            const repositoryUrl = `https://github.com/${owner}/${repo}`;
+
+            const promptText = [
+              `# GitHub Issue #${issueNumber}`,
+              '',
+              '## Repository task',
+              '',
+              `Repository: ${repositoryUrl}`,
+              `Issue URL: ${issueUrl}`,
+              '',
+              systemPrompt,
+              '',
+              'Read and follow in the repo:',
+              '- CLAUDE.md',
+              `- .github/agent-tasks/${taskFile}`,
+              '',
+              '## Title',
+              '',
+              issueTitle,
+              '',
+              '## Issue body',
+              '',
+              issueBody,
+              '',
+              '---',
+              '',
+              '## Required pull request',
+              '',
+              `Open a PR targeting \`main\` with a clear description and test plan. Do not merge.`,
+              `Put this line verbatim in the PR description: Closes #${issueNumber}`,
+              '',
+              'Implement **only** this issue. If the issue lists **Files**, edit only those paths plus direct imports.',
+              'Do not modify `.github/workflows/ci.yml` or weaken `api/src/__tests__/concurrency.test.ts`.',
+            ].join('\n');
+
+            const requestBody = {
+              prompt: { text: promptText },
+              source: { repository: repositoryUrl, ref: 'main' },
+              target: { autoCreatePr: true, branchName },
+            };
+
+            const auth = Buffer.from(
+              `${process.env.CURSOR_API_KEY}:`,
+              'utf8'
+            ).toString('base64');
+
+            const response = await fetch('https://api.cursor.com/v0/agents', {
+              method: 'POST',
+              headers: {
+                Authorization: `Basic ${auth}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify(requestBody),
+            });
+
+            const responseText = await response.text();
+            let parsed;
+            try {
+              parsed = JSON.parse(responseText);
+            } catch {
+              parsed = null;
+            }
+
+            if (!response.ok) {
+              await comment(
+                `Failed to start Cursor cloud agent (HTTP ${response.status}). Check that Cursor is connected to GitHub for this repo and that \`CURSOR_API_KEY\` is valid.`
+              );
+              core.setFailed(`Cursor API error: ${responseText}`);
+              return;
+            }
+
+            const agentId = parsed?.id ?? '(unknown)';
+            const agentUrl = parsed?.target?.url ?? '';
+            const agentStatus = parsed?.status ?? '';
+
+            await github.rest.issues.addLabels({
+              owner,
+              repo,
+              issue_number: issueNumber,
+              labels: [enqueuedLabel],
+            });
+
+            const urlLine = agentUrl
+              ? `[Open agent in Cursor](${agentUrl})`
+              : 'Open the Cursor dashboard → Cloud Agents for run status.';
+            await comment(
+              [
+                '**Cursor cloud agent** started for this issue.',
+                '',
+                `- Agent id: \`${agentId}\``,
+                agentStatus ? `- Status: \`${agentStatus}\`` : '',
+                `- Branch: \`${branchName}\``,
+                `- ${urlLine}`,
+                '',
+                'The agent will work in the cloud and can open a PR automatically. Connect GitHub in Cursor (Cloud → Agents → integrations) if the run cannot access this repository.',
+              ]
+                .filter(Boolean)
+                .join('\n')
+            );

@@ -1,5 +1,5 @@
 name: Web feature
-description: Frontend / Next.js work. Triggers Claude agent (Sonnet) when labeled web and @claude or bot assigned.
+description: Frontend / Next.js work. Comment @claude or @cursor (or assign bot for Claude) when labeled web.
 title: "web: "
 labels:
   - web

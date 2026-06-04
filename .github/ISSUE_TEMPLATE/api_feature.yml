@@ -1,5 +1,5 @@
 name: API feature
-description: Backend / api package work. Triggers Claude agent (Sonnet) when labeled api and @claude or bot assigned.
+description: Backend / api package work. Comment @claude or @cursor (or assign bot for Claude) when labeled api.
 title: "api: "
 labels:
   - api

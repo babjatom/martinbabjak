@@ -115,10 +115,16 @@ On-demand procedures live in `.cursor/skills/` and `.claude/skills/` (keep both 
 
 ## Agent workflows (GitHub)
 
-Workflow: `.github/workflows/agent.yml`. Trigger: `@claude` in title/body/comment, or assign `github-actions[bot]`.
+Workflow: `.github/workflows/agent.yml`. Trigger on an issue with label `api` or `web`:
 
-| Label | Agent | Model | Task file |
-|-------|-------|-------|-----------|
+- Comment **`@claude`** → Claude Code Action (GitHub runner)
+- Comment **`@cursor`** → Cursor Cloud Agent (requires repo secret `CURSOR_API_KEY` and GitHub connected in Cursor)
+- Assign **`github-actions[bot]`** without `@cursor` in the issue → **Claude** (same as before)
+
+Do not put `@claude` and `@cursor` in the same comment or issue text.
+
+| Label | Agent lanes | Claude model | Task file |
+|-------|-------------|--------------|-----------|
 | `api` | yes | Sonnet (`claude-sonnet-4-6`) | `implement-feature.md` |
 | `web` | yes | Sonnet (`claude-sonnet-4-6`) | `implement-feature-web.md` |
 | `infra` | no (human-only) | — | — |
