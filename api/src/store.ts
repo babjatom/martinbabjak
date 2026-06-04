@@ -24,6 +24,8 @@ export interface Store {
    * enforcement point. `fn` must be synchronous.
    */
   transaction<T>(fn: () => T): T;
+  /** Postgres-only; not on SqliteStore callers. */
+  transactionAsync?<T>(fn: () => Promise<T>): Promise<T>;
 
   // --- config ---
   getConfigRows(): { key: string; value: string }[];

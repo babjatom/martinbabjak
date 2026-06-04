@@ -17,8 +17,8 @@ beforeEach(() => {
 });
 
 describe('createBooking', () => {
-  it('creates a booking for a valid slot', () => {
-    const { booking, created } = createBooking({
+  it('creates a booking for a valid slot', async () => {
+    const { booking, created } = await createBooking({
       slot_id: 'slot-001',
       user_id: 'user-1',
       idempotency_key: 'idem-1',
@@ -29,29 +29,29 @@ describe('createBooking', () => {
     expect(booking.cancelled_at).toBeNull();
   });
 
-  it('returns the existing booking for a repeated idempotency key', () => {
+  it('returns the existing booking for a repeated idempotency key', async () => {
     const params = { slot_id: 'slot-001', user_id: 'user-1', idempotency_key: 'idem-1' };
-    const first = createBooking(params);
-    const second = createBooking(params);
+    const first = await createBooking(params);
+    const second = await createBooking(params);
     expect(second.created).toBe(false);
     expect(second.booking.id).toBe(first.booking.id);
   });
 
-  it('throws SlotAlreadyBookedError when slot is taken by another user', () => {
-    createBooking({ slot_id: 'slot-001', user_id: 'user-1', idempotency_key: 'idem-1' });
-    expect(() =>
+  it('throws SlotAlreadyBookedError when slot is taken by another user', async () => {
+    await createBooking({ slot_id: 'slot-001', user_id: 'user-1', idempotency_key: 'idem-1' });
+    await expect(
       createBooking({ slot_id: 'slot-001', user_id: 'user-2', idempotency_key: 'idem-2' })
-    ).toThrow(SlotAlreadyBookedError);
+    ).rejects.toThrow(SlotAlreadyBookedError);
   });
 
-  it('allows re-booking a slot after its booking is cancelled', () => {
-    const { booking } = createBooking({
+  it('allows re-booking a slot after its booking is cancelled', async () => {
+    const { booking } = await createBooking({
       slot_id: 'slot-001',
       user_id: 'user-1',
       idempotency_key: 'idem-1',
     });
-    cancelBooking(booking.id);
-    const { created } = createBooking({
+    await cancelBooking(booking.id);
+    const { created } = await createBooking({
       slot_id: 'slot-001',
       user_id: 'user-2',
       idempotency_key: 'idem-2',
@@ -59,60 +59,60 @@ describe('createBooking', () => {
     expect(created).toBe(true);
   });
 
-  it('allows booking different slots simultaneously', () => {
-    const r1 = createBooking({ slot_id: 'slot-001', user_id: 'u1', idempotency_key: 'ik-1' });
-    const r2 = createBooking({ slot_id: 'slot-002', user_id: 'u2', idempotency_key: 'ik-2' });
+  it('allows booking different slots simultaneously', async () => {
+    const r1 = await createBooking({ slot_id: 'slot-001', user_id: 'u1', idempotency_key: 'ik-1' });
+    const r2 = await createBooking({ slot_id: 'slot-002', user_id: 'u2', idempotency_key: 'ik-2' });
     expect(r1.created).toBe(true);
     expect(r2.created).toBe(true);
   });
 
-  it('throws SlotNotFoundError for non-existent slot', () => {
-    expect(() =>
+  it('throws SlotNotFoundError for non-existent slot', async () => {
+    await expect(
       createBooking({ slot_id: 'slot-999', user_id: 'user-1', idempotency_key: 'idem-1' })
-    ).toThrow(SlotNotFoundError);
+    ).rejects.toThrow(SlotNotFoundError);
   });
 });
 
 describe('getBooking', () => {
-  it('returns the booking by id', () => {
-    const { booking } = createBooking({
+  it('returns the booking by id', async () => {
+    const { booking } = await createBooking({
       slot_id: 'slot-001',
       user_id: 'user-1',
       idempotency_key: 'idem-1',
     });
-    const fetched = getBooking(booking.id);
+    const fetched = await getBooking(booking.id);
     expect(fetched.id).toBe(booking.id);
     expect(fetched.user_id).toBe('user-1');
   });
 
-  it('throws BookingNotFoundError for unknown id', () => {
-    expect(() => getBooking('nonexistent')).toThrow(BookingNotFoundError);
+  it('throws BookingNotFoundError for unknown id', async () => {
+    await expect(getBooking('nonexistent')).rejects.toThrow(BookingNotFoundError);
   });
 });
 
 describe('cancelBooking', () => {
-  it('cancels an active booking and sets cancelled_at', () => {
-    const { booking } = createBooking({
+  it('cancels an active booking and sets cancelled_at', async () => {
+    const { booking } = await createBooking({
       slot_id: 'slot-001',
       user_id: 'user-1',
       idempotency_key: 'idem-1',
     });
-    const cancelled = cancelBooking(booking.id);
+    const cancelled = await cancelBooking(booking.id);
     expect(cancelled.status).toBe('cancelled');
     expect(cancelled.cancelled_at).not.toBeNull();
   });
 
-  it('throws BookingAlreadyCancelledError when cancelled twice', () => {
-    const { booking } = createBooking({
+  it('throws BookingAlreadyCancelledError when cancelled twice', async () => {
+    const { booking } = await createBooking({
       slot_id: 'slot-001',
       user_id: 'user-1',
       idempotency_key: 'idem-1',
     });
-    cancelBooking(booking.id);
-    expect(() => cancelBooking(booking.id)).toThrow(BookingAlreadyCancelledError);
+    await cancelBooking(booking.id);
+    await expect(cancelBooking(booking.id)).rejects.toThrow(BookingAlreadyCancelledError);
   });
 
-  it('throws BookingNotFoundError for unknown id', () => {
-    expect(() => cancelBooking('nonexistent')).toThrow(BookingNotFoundError);
+  it('throws BookingNotFoundError for unknown id', async () => {
+    await expect(cancelBooking('nonexistent')).rejects.toThrow(BookingNotFoundError);
   });
 });

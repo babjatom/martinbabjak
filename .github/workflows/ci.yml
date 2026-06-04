@@ -52,11 +52,51 @@ jobs:
       - run: npm test
         working-directory: api
 
+  api-test-postgres:
+    name: API · Test (Postgres + concurrency.postgres)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: booking
+          POSTGRES_PASSWORD: booking
+          POSTGRES_DB: booking_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U booking -d booking_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://booking:booking@localhost:5432/booking_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: api/package-lock.json
+      - run: npm ci
+        working-directory: api
+      - run: npm run test:postgres
+        working-directory: api
+
   web-typecheck:
     name: Web · Type Check
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: api/package-lock.json
+      - run: npm ci
+        working-directory: api
+      - run: npm run build
+        working-directory: api
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
@@ -70,10 +110,17 @@ jobs:
   web-build:
     name: Web · Build
     runs-on: ubuntu-latest
-    env:
-      API_URL: http://localhost:3001
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: api/package-lock.json
+      - run: npm ci
+        working-directory: api
+      - run: npm run build
+        working-directory: api
       - uses: actions/setup-node@v4
         with:
           node-version: '20'

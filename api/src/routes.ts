@@ -1,129 +1,62 @@
 import { Router, Request, Response, NextFunction } from 'express';
-import { z } from 'zod';
 import {
-  createBooking,
-  getBooking,
-  cancelBooking,
-  SlotAlreadyBookedError,
-  SlotNotFoundError,
-  BookingNotFoundError,
-  BookingAlreadyCancelledError,
-} from './bookings';
-import { listAvailableSlots, listAllSlots, createSlot, deactivateSlot } from './slots';
-import { getConfig, updateConfig } from './config';
+  handleGetConfig,
+  handlePutConfig,
+  handleGetSlots,
+  handleGetSlotsAll,
+  handlePostSlots,
+  handleDeleteSlot,
+  handlePostBookings,
+  handleGetBooking,
+  handleDeleteBooking,
+  internalError,
+} from './http/handlers';
 
 export const router = Router();
 
-router.get('/config', (_req: Request, res: Response): void => {
-  res.json({ config: getConfig() });
-});
+async function send(res: Response, promise: Promise<{ status: number; body: Record<string, unknown> }>): Promise<void> {
+  const { status, body } = await promise;
+  res.status(status).json(body);
+}
 
-const UpdateConfigSchema = z.object({
-  title: z.string().min(1).max(200).optional(),
-  description: z.string().max(1000).optional(),
-  bg_image_url: z.string().max(2000).optional(),
+router.get('/config', (_req: Request, res: Response): void => {
+  void send(res, handleGetConfig());
 });
 
 router.put('/config', (req: Request, res: Response): void => {
-  const parsed = UpdateConfigSchema.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: 'VALIDATION_ERROR', details: parsed.error.flatten() });
-    return;
-  }
-  res.json({ config: updateConfig(parsed.data) });
+  void send(res, handlePutConfig(req.body));
 });
 
 router.get('/slots', (_req: Request, res: Response): void => {
-  res.json({ slots: listAvailableSlots() });
+  void send(res, handleGetSlots());
 });
 
 router.get('/slots/all', (_req: Request, res: Response): void => {
-  res.json({ slots: listAllSlots() });
-});
-
-const CreateSlotSchema = z.object({
-  label: z.string().min(1).max(200),
-  starts_at: z.string().datetime(),
-  duration_m: z.number().int().positive().max(480).optional(),
+  void send(res, handleGetSlotsAll());
 });
 
 router.post('/slots', (req: Request, res: Response): void => {
-  const parsed = CreateSlotSchema.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: 'VALIDATION_ERROR', details: parsed.error.flatten() });
-    return;
-  }
-  res.status(201).json({ slot: createSlot(parsed.data) });
+  void send(res, handlePostSlots(req.body));
 });
 
 router.delete('/slots/:id', (req: Request, res: Response): void => {
-  try {
-    deactivateSlot(req.params['id'] ?? '');
-    res.json({ message: 'Slot deactivated' });
-  } catch (err) {
-    if (err instanceof SlotNotFoundError) {
-      res.status(404).json({ error: 'SLOT_NOT_FOUND', message: err.message });
-    } else {
-      throw err;
-    }
-  }
-});
-
-const CreateBookingSchema = z.object({
-  slot_id: z.string().min(1),
-  user_id: z.string().min(1),
-  idempotency_key: z.string().min(1),
+  void send(res, handleDeleteSlot(req.params['id'] ?? ''));
 });
 
 router.post('/bookings', (req: Request, res: Response): void => {
-  const parsed = CreateBookingSchema.safeParse(req.body);
-  if (!parsed.success) {
-    res.status(400).json({ error: 'VALIDATION_ERROR', details: parsed.error.flatten() });
-    return;
-  }
-
-  try {
-    const { booking, created } = createBooking(parsed.data);
-    res.status(created ? 201 : 200).json({ booking });
-  } catch (err) {
-    if (err instanceof SlotNotFoundError) {
-      res.status(404).json({ error: 'SLOT_NOT_FOUND', message: err.message });
-    } else if (err instanceof SlotAlreadyBookedError) {
-      res.status(409).json({ error: 'SLOT_ALREADY_BOOKED', message: err.message });
-    } else {
-      throw err;
-    }
-  }
+  void send(res, handlePostBookings(req.body));
 });
 
 router.get('/bookings/:id', (req: Request, res: Response): void => {
-  try {
-    res.json({ booking: getBooking(req.params['id'] ?? '') });
-  } catch (err) {
-    if (err instanceof BookingNotFoundError) {
-      res.status(404).json({ error: 'BOOKING_NOT_FOUND', message: err.message });
-    } else {
-      throw err;
-    }
-  }
+  void send(res, handleGetBooking(req.params['id'] ?? ''));
 });
 
 router.delete('/bookings/:id', (req: Request, res: Response): void => {
-  try {
-    res.json({ booking: cancelBooking(req.params['id'] ?? '') });
-  } catch (err) {
-    if (err instanceof BookingNotFoundError) {
-      res.status(404).json({ error: 'BOOKING_NOT_FOUND', message: err.message });
-    } else if (err instanceof BookingAlreadyCancelledError) {
-      res.status(409).json({ error: 'BOOKING_ALREADY_CANCELLED', message: err.message });
-    } else {
-      throw err;
-    }
-  }
+  void send(res, handleDeleteBooking(req.params['id'] ?? ''));
 });
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export function errorHandler(err: Error, _req: Request, res: Response, _next: NextFunction): void {
   console.error(err);
-  res.status(500).json({ error: 'INTERNAL_ERROR', message: 'An unexpected error occurred' });
+  const { status, body } = internalError();
+  res.status(status).json(body);
 }

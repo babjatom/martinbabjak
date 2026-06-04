@@ -1,4 +1,5 @@
 import { getStore } from './store';
+import { isPostgresStore } from './postgres/PostgresStore';
 
 export interface PageConfig {
   title: string;
@@ -6,8 +7,7 @@ export interface PageConfig {
   bg_image_url: string;
 }
 
-export function getConfig(): PageConfig {
-  const rows = getStore().getConfigRows();
+function rowsToConfig(rows: { key: string; value: string }[]): PageConfig {
   const map = Object.fromEntries(rows.map((r) => [r.key, r.value]));
   return {
     title: map['title'] ?? 'Book a Session',
@@ -16,8 +16,25 @@ export function getConfig(): PageConfig {
   };
 }
 
-export function updateConfig(patch: Partial<PageConfig>): PageConfig {
+export async function getConfig(): Promise<PageConfig> {
   const store = getStore();
+  if (isPostgresStore(store)) {
+    return rowsToConfig(await store.getConfigRowsAsync());
+  }
+  return rowsToConfig(store.getConfigRows());
+}
+
+export async function updateConfig(patch: Partial<PageConfig>): Promise<PageConfig> {
+  const store = getStore();
+  if (isPostgresStore(store)) {
+    await store.transactionAsync(async () => {
+      for (const [key, value] of Object.entries(patch)) {
+        if (value !== undefined) await store.setConfigValueAsync(key, value);
+      }
+    });
+    return getConfig();
+  }
+
   store.transaction((): void => {
     for (const [key, value] of Object.entries(patch)) {
       if (value !== undefined) store.setConfigValue(key, value);

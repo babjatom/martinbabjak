@@ -142,8 +142,8 @@ describe('Store seam: domain works against a non-SQLite Store', () => {
     setStore(null);
   });
 
-  it('creates a booking through the injected store', () => {
-    const { booking, created } = createBooking({
+  it('creates a booking through the injected store', async () => {
+    const { booking, created } = await createBooking({
       slot_id: 'slot-001',
       user_id: 'u1',
       idempotency_key: 'k1',
@@ -154,63 +154,63 @@ describe('Store seam: domain works against a non-SQLite Store', () => {
     expect(booking.cancelled_at).toBeNull();
   });
 
-  it('is idempotent for a repeated key', () => {
+  it('is idempotent for a repeated key', async () => {
     const p = { slot_id: 'slot-001', user_id: 'u1', idempotency_key: 'k1' };
-    const a = createBooking(p);
-    const b = createBooking(p);
+    const a = await createBooking(p);
+    const b = await createBooking(p);
     expect(b.created).toBe(false);
     expect(b.booking.id).toBe(a.booking.id);
   });
 
-  it('enforces the invariant: a second active booking for the slot throws', () => {
-    createBooking({ slot_id: 'slot-001', user_id: 'u1', idempotency_key: 'k1' });
-    expect(() =>
+  it('enforces the invariant: a second active booking for the slot throws', async () => {
+    await createBooking({ slot_id: 'slot-001', user_id: 'u1', idempotency_key: 'k1' });
+    await expect(
       createBooking({ slot_id: 'slot-001', user_id: 'u2', idempotency_key: 'k2' })
-    ).toThrow(SlotAlreadyBookedError);
+    ).rejects.toThrow(SlotAlreadyBookedError);
   });
 
-  it('throws SlotNotFoundError for an unknown slot', () => {
-    expect(() =>
+  it('throws SlotNotFoundError for an unknown slot', async () => {
+    await expect(
       createBooking({ slot_id: 'nope', user_id: 'u1', idempotency_key: 'k1' })
-    ).toThrow(SlotNotFoundError);
+    ).rejects.toThrow(SlotNotFoundError);
   });
 
-  it('cancels and frees the slot for rebooking', () => {
-    const { booking } = createBooking({
+  it('cancels and frees the slot for rebooking', async () => {
+    const { booking } = await createBooking({
       slot_id: 'slot-001',
       user_id: 'u1',
       idempotency_key: 'k1',
     });
-    const cancelled = cancelBooking(booking.id);
+    const cancelled = await cancelBooking(booking.id);
     expect(cancelled.status).toBe('cancelled');
     expect(cancelled.cancelled_at).not.toBeNull();
-    expect(listAvailableSlots().map((s) => s.id)).toContain('slot-001');
-    const rebook = createBooking({ slot_id: 'slot-001', user_id: 'u2', idempotency_key: 'k2' });
+    expect((await listAvailableSlots()).map((s) => s.id)).toContain('slot-001');
+    const rebook = await createBooking({ slot_id: 'slot-001', user_id: 'u2', idempotency_key: 'k2' });
     expect(rebook.created).toBe(true);
   });
 
-  it('surfaces not-found and already-cancelled errors', () => {
-    expect(() => getBooking('missing')).toThrow(BookingNotFoundError);
-    expect(() => cancelBooking('missing')).toThrow(BookingNotFoundError);
-    const { booking } = createBooking({
+  it('surfaces not-found and already-cancelled errors', async () => {
+    await expect(getBooking('missing')).rejects.toThrow(BookingNotFoundError);
+    await expect(cancelBooking('missing')).rejects.toThrow(BookingNotFoundError);
+    const { booking } = await createBooking({
       slot_id: 'slot-002',
       user_id: 'u1',
       idempotency_key: 'k3',
     });
-    cancelBooking(booking.id);
-    expect(() => cancelBooking(booking.id)).toThrow(BookingAlreadyCancelledError);
+    await cancelBooking(booking.id);
+    await expect(cancelBooking(booking.id)).rejects.toThrow(BookingAlreadyCancelledError);
   });
 
-  it('reads and updates config through the store', () => {
-    expect(getConfig().title).toBe('Book a Session');
-    const updated = updateConfig({ title: 'Custom' });
+  it('reads and updates config through the store', async () => {
+    expect((await getConfig()).title).toBe('Book a Session');
+    const updated = await updateConfig({ title: 'Custom' });
     expect(updated.title).toBe('Custom');
   });
 
-  it('creates and deactivates slots through the store', () => {
-    const slot = createSlot({ label: 'New', starts_at: '2026-07-08T09:00:00Z' });
-    expect(listAvailableSlots().map((s) => s.id)).toContain(slot.id);
-    deactivateSlot(slot.id);
-    expect(listAvailableSlots().map((s) => s.id)).not.toContain(slot.id);
+  it('creates and deactivates slots through the store', async () => {
+    const slot = await createSlot({ label: 'New', starts_at: '2026-07-08T09:00:00Z' });
+    expect((await listAvailableSlots()).map((s) => s.id)).toContain(slot.id);
+    await deactivateSlot(slot.id);
+    expect((await listAvailableSlots()).map((s) => s.id)).not.toContain(slot.id);
   });
 });

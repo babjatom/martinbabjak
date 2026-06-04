@@ -17,19 +17,21 @@ Read this before making any changes. These rules are non-negotiable constraints.
 
 ```
 api/src/
-  db.ts        — SQLite init, migrations, setDb/createInMemoryDb testability seam
-  slots.ts     — Slot model, seed data, SlotNotFoundError
-  config.ts    — PageConfig CRUD
-  bookings.ts  — createBooking / getBooking / cancelBooking (core invariant lives here)
-  routes.ts    — Thin Express handlers — dispatch errors, delegate to service functions
-  app.ts       — createApp() factory (no listen)
-  server.ts    — Entry point: seedSlots() then app.listen()
-  __tests__/   — All test files
+  store.ts             — Store interface + SqliteStore
+  postgres/            — PostgresStore, migrations, pool client
+  db.ts                — SQLite init (local/tests)
+  bookings.ts          — Booking domain (async; SQLite + Postgres paths)
+  slots.ts, config.ts  — Domain modules
+  http/handlers.ts     — Shared HTTP handlers (Express + Next)
+  routes.ts, app.ts    — Express (optional local dev)
+  runtime/init-store.ts — Wire Store for Route Handlers
+  __tests__/           — SQLite tests + concurrency gate; Postgres tests separate
 
 web/src/
-  types.ts             — Shared TypeScript interfaces
-  app/page.tsx         — Server component, fetches config + slots
+  app/api/             — Next Route Handlers (`runtime = 'nodejs'`)
+  app/page.tsx         — Server component
   components/          — Client components
+  lib/api-route.ts     — Handler → NextResponse helper
 ```
 
 ## THE INVARIANT — Never Break This
@@ -120,11 +122,11 @@ Triggered by GitHub issues with label `vercel-hosting` and task file
 
 | Phase | Scope | Stack notes |
 |-------|--------|-------------|
-| **0** | Human only: this section, Postgres in CI, hosted DB | Agents do not edit `ci.yml` |
+| **0** | Postgres in CI (`api-test-postgres`), hosted DB docs | `ci.yml` Postgres job added for this epic |
 | **1** | Domain behind a DB interface; `api` keeps SQLite | Existing invariant unchanged |
 | **2** | Postgres adapter; **add** `concurrency.postgres.test.ts` | Partial unique index on `(slot_id) WHERE status = 'active'`; map unique violations to 409 |
 | **3** | Next Route Handlers under `web/src/app/api/` | `export const runtime = 'nodejs'` for DB routes |
-| **4** | Same-origin `/api`, remove Express / file SQLite | Update tests and file map when cutover completes |
+| **4** | Same-origin `/api` via Next Route Handlers; Express optional for local debug | `concurrency.test.ts` remains SQLite showcase; `concurrency.postgres.test.ts` is the Postgres gate |
 
 **Invariant (all phases):** exactly one active booking per slot; parallel race tests use `Promise.all` and expect statuses **201** and **409** (order-independent).
 

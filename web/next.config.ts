@@ -1,14 +1,10 @@
 import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
-  async rewrites() {
-    return [
-      {
-        source: '/api/:path*',
-        destination: `${process.env.API_URL ?? 'http://localhost:3001'}/api/:path*`,
-      },
-    ];
+  experimental: {
+    externalDir: true,
   },
+  serverExternalPackages: ['better-sqlite3', 'pg'],
 };
 
 export default nextConfig;

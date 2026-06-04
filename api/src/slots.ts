@@ -1,5 +1,6 @@
 import { randomUUID } from 'crypto';
 import { getStore } from './store';
+import { isPostgresStore } from './postgres/PostgresStore';
 
 export interface Slot {
   id: string;
@@ -25,26 +26,52 @@ const SEED_SLOTS: Omit<Slot, 'is_active'>[] = [
 ];
 
 export function seedSlots(): void {
+  const store = getStore();
+  if (isPostgresStore(store)) {
+    void store.seedSlotsAsync(SEED_SLOTS);
+    return;
+  }
   getStore().seedSlots(SEED_SLOTS);
 }
 
-export function listAvailableSlots(): Slot[] {
-  return getStore().listAvailableSlots();
+export async function seedSlotsAsync(): Promise<void> {
+  const store = getStore();
+  if (isPostgresStore(store)) {
+    await store.seedSlotsAsync(SEED_SLOTS);
+    return;
+  }
+  getStore().seedSlots(SEED_SLOTS);
 }
 
-export function listAllSlots(): Slot[] {
-  return getStore().listAllSlots();
+export async function listAvailableSlots(): Promise<Slot[]> {
+  const store = getStore();
+  if (isPostgresStore(store)) {
+    return store.listAvailableSlotsAsync();
+  }
+  return store.listAvailableSlots();
 }
 
-export function slotExistsAndActive(slotId: string): boolean {
-  return getStore().slotExistsAndActive(slotId);
+export async function listAllSlots(): Promise<Slot[]> {
+  const store = getStore();
+  if (isPostgresStore(store)) {
+    return store.listAllSlotsAsync();
+  }
+  return store.listAllSlots();
 }
 
-export function createSlot(params: {
+export async function slotExistsAndActive(slotId: string): Promise<boolean> {
+  const store = getStore();
+  if (isPostgresStore(store)) {
+    return store.slotExistsAndActiveAsync(slotId);
+  }
+  return store.slotExistsAndActive(slotId);
+}
+
+export async function createSlot(params: {
   label: string;
   starts_at: string;
   duration_m?: number;
-}): Slot {
+}): Promise<Slot> {
   const id = randomUUID();
   const duration_m = params.duration_m ?? 30;
   const slot: Slot = {
@@ -54,11 +81,19 @@ export function createSlot(params: {
     duration_m,
     is_active: 1,
   };
-  getStore().insertSlot(slot);
+  const store = getStore();
+  if (isPostgresStore(store)) {
+    await store.insertSlotAsync(slot);
+  } else {
+    store.insertSlot(slot);
+  }
   return slot;
 }
 
-export function deactivateSlot(id: string): void {
-  const changes = getStore().deactivateSlot(id);
+export async function deactivateSlot(id: string): Promise<void> {
+  const store = getStore();
+  const changes = isPostgresStore(store)
+    ? await store.deactivateSlotAsync(id)
+    : store.deactivateSlot(id);
   if (changes === 0) throw new SlotNotFoundError(id);
 }
