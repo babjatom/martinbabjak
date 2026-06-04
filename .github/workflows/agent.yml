@@ -86,12 +86,10 @@ jobs:
             Read and follow:
             - CLAUDE.md
             - .github/agent-tasks/implement-feature.md
-            - .github/agent-tasks/commit-conventions.md
 
             Implement the work requested in the issue/comment. Use TDD for API changes.
-            Every git commit message and the PR title MUST follow Conventional Commits.
             Open a PR targeting main with a clear description and test plan. Do not merge.
           claude_args: |
             --model claude-sonnet-4-6
-            --max-turns 30
-            --system-prompt "Follow CLAUDE.md and the agent task files in .github/agent-tasks/. Use Conventional Commits for every commit and the PR title. Do not modify api/src/__tests__/concurrency.test.ts except additions allowed by CLAUDE.md. Do not modify .github/workflows/ci.yml."
+            --max-turns 20
+            --system-prompt "Follow CLAUDE.md and implement-feature.md. Do not modify .github/workflows/ci.yml. Concurrency gate and commits: CLAUDE.md only."

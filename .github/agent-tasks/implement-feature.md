@@ -14,9 +14,8 @@
    described in the issue. If requirements are ambiguous, comment on the issue asking for
    clarification before writing code.
 
-2. **Read CLAUDE.md** and **`.github/agent-tasks/commit-conventions.md`.** All decisions
-   must comply. Issues labeled `vercel-hosting` use `agent-vercel.yml` and
-   `vercel-hosting.md` instead of this file.
+2. **Read `CLAUDE.md`** and **this file.** All decisions must comply. Issues labeled
+   `vercel-hosting` use `agent-vercel.yml` and `vercel-hosting.md` instead of this file.
 
 3. **Create a feature branch** named `agent/issue-{N}-{short-slug}`.
 
@@ -26,11 +25,12 @@
 5. **Implement the feature.** Follow patterns in the existing source files. Match the
    error codes, response shapes, and TypeScript conventions in CLAUDE.md.
 
-6. **Verify the concurrency gate is unmodified.** Read `api/src/__tests__/concurrency.test.ts`
-   and confirm it is unchanged from the main branch.
+6. **Verify the concurrency gate is unmodified.** Run
+   `git diff origin/main -- api/src/__tests__/concurrency.test.ts` and confirm the output
+   is empty (no changes to that file).
 
-7. **Commit** using **Conventional Commits** (see `commit-conventions.md`). Every commit
-   message and the **PR title** must follow `type(scope): subject`.
+7. **Commit** using **Conventional Commits** (see CLAUDE.md → Git). Every commit message
+   and the **PR title** must follow `type(scope): subject`.
 
 8. **Open a pull request** from your branch to `main`. The PR description must include:
    - What was implemented
@@ -43,7 +43,7 @@
 ## Success Criteria
 
 - [ ] All existing tests pass (no regressions)
-- [ ] `api/src/__tests__/concurrency.test.ts` is not modified, skipped, or removed
+- [ ] Concurrency gate unchanged — see CLAUDE.md → THE CONCURRENCY GATE
 - [ ] New behaviour is covered by at least one unit test and one integration test
 - [ ] `npm run typecheck` exits 0 in `api/`
 - [ ] `npm run lint` exits 0 in `api/`
@@ -54,8 +54,8 @@
 
 ## Hard Constraints
 
-- Do NOT add `[skip ci]` to any commit message
-- Do NOT modify `.github/workflows/ci.yml`
-- Do NOT modify `api/src/__tests__/concurrency.test.ts` (additions only, never deletions or skips)
+- Do NOT add `[skip ci]` to any commit message — see CLAUDE.md → CI Rules
+- Do NOT modify `.github/workflows/ci.yml` — see CLAUDE.md → CI Rules
+- Do NOT modify `api/src/__tests__/concurrency.test.ts` except as allowed in CLAUDE.md → THE CONCURRENCY GATE
 - Do NOT change branch protection settings
 - Do NOT merge the PR — wait for human review

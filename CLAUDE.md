@@ -97,14 +97,9 @@ Booking object: `{ id, slot_id, user_id, idempotency_key, status, created_at, ca
 
 ## Git — Conventional Commits
 
-Required for **all agent PRs** and expected for human contributions. Full rules:
-`.github/agent-tasks/commit-conventions.md`.
+Required for **all agent PRs** and expected for human contributions.
 
-- Format: `type(optional-scope): imperative subject` (lowercase, no trailing period).
-- Types: `feat`, `fix`, `docs`, `test`, `refactor`, `chore`, `ci`, `build`, `style`, `perf`.
-- Scopes: prefer `api`, `web`, `ci`, `agent` when applicable.
-- **PR title** must match Conventional Commits (same as primary commit if squashing).
-- Logical, atomic commits; never `[skip ci]` in messages.
+@.github/agent-tasks/commit-conventions.md
 
 ## CI Rules
 
@@ -112,6 +107,11 @@ Required for **all agent PRs** and expected for human contributions. Full rules:
 - Do NOT add `[skip ci]` to commit messages
 - Do NOT modify `.github/workflows/ci.yml`
 - PRs target `main` — never self-merge
+- Do not read `package-lock.json` unless debugging a dependency resolution issue
+
+## Skills
+
+On-demand procedures live in `.cursor/skills/` and `.claude/skills/` (keep both trees identical when editing).
 
 ## Vercel hosting migration (epic)
 
@@ -128,6 +128,4 @@ Triggered by GitHub issues with label `vercel-hosting` and task file
 
 **Invariant (all phases):** exactly one active booking per slot; parallel race tests use `Promise.all` and expect statuses **201** and **409** (order-independent).
 
-**Concurrency gate file:** `api/src/__tests__/concurrency.test.ts` stays until Phase 4 cutover. Until then: no removals, skips, or weakening tests; additions allowed in other files.
-
-**Phase 2+ Postgres booking:** use a transaction, re-check idempotency inside the transaction, rely on the partial unique index so concurrent inserts for the same slot yield one success and one **409** (`SLOT_ALREADY_BOOKED`).
+Gate file rules: see **THE CONCURRENCY GATE** (unchanged until Phase 4 cutover). **Phase 2+ Postgres booking:** transaction, re-check idempotency inside the transaction, partial unique index → one **409** (`SLOT_ALREADY_BOOKED`) on concurrent inserts for the same slot.
