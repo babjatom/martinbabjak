@@ -113,19 +113,20 @@ Required for **all agent PRs** and expected for human contributions.
 
 On-demand procedures live in `.cursor/skills/` and `.claude/skills/` (keep both trees identical when editing).
 
-## Vercel hosting migration (epic)
+## Agent workflows (GitHub)
 
-Triggered by GitHub issues with label `vercel-hosting` and task file
-`.github/agent-tasks/vercel-hosting.md` (workflow `agent-vercel.yml`). Implement **one phase per PR**.
+Workflow: `.github/workflows/agent.yml`. Trigger: `@claude` in title/body/comment, or assign `github-actions[bot]`.
 
-| Phase | Scope | Stack notes |
-|-------|--------|-------------|
-| **0** | Postgres in CI (`api-test-postgres`), hosted DB docs | `ci.yml` Postgres job added for this epic |
-| **1** | Domain behind a DB interface; `api` keeps SQLite | Existing invariant unchanged |
-| **2** | Postgres adapter; **add** `concurrency.postgres.test.ts` | Partial unique index on `(slot_id) WHERE status = 'active'`; map unique violations to 409 |
-| **3** | Next Route Handlers under `web/src/app/api/` | `export const runtime = 'nodejs'` for DB routes |
-| **4** | Same-origin `/api` via Next Route Handlers; Express optional for local debug | `concurrency.test.ts` remains SQLite showcase; `concurrency.postgres.test.ts` is the Postgres gate |
+| Label | Agent | Model | Task file |
+|-------|-------|-------|-----------|
+| `api` | yes | Sonnet (`claude-sonnet-4-6`) | `implement-feature.md` |
+| `web` | yes | Haiku (`claude-haiku-4-5`) | `implement-feature-web.md` |
+| `infra` | no (human-only) | — | — |
 
-**Invariant (all phases):** exactly one active booking per slot; parallel race tests use `Promise.all` and expect statuses **201** and **409** (order-independent).
+Use **one** of `api` or `web` per issue (not both). Issue templates: `api_feature`, `web_feature`, `infra_task`.
 
-Gate file rules: see **THE CONCURRENCY GATE** (unchanged until Phase 4 cutover). **Phase 2+ Postgres booking:** transaction, re-check idempotency inside the transaction, partial unique index → one **409** (`SLOT_ALREADY_BOOKED`) on concurrent inserts for the same slot.
+## Hosting
+
+- API surface: Next Route Handlers under `web/src/app/api/` (`runtime = 'nodejs'`); shared handlers in `api/src/http/`.
+- Database: Postgres only (`DATABASE_URL`); partial unique index enforces one active booking per slot.
+- Express in `api/` remains optional for local debugging.

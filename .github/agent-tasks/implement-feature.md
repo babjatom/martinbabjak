@@ -14,13 +14,14 @@
    described in the issue. If requirements are ambiguous, comment on the issue asking for
    clarification before writing code.
 
-2. **Read `CLAUDE.md`** and **this file.** All decisions must comply. Issues labeled
-   `vercel-hosting` use `agent-vercel.yml` and `vercel-hosting.md` instead of this file.
+2. **Read `CLAUDE.md`** and **this file.** For issues labeled **`api`** (agent lane). Web
+   issues use `implement-feature-web.md`; `infra` is human-only.
 
 3. **Create a feature branch** named `agent/issue-{N}-{short-slug}`.
 
 4. **Write tests first.** Following the TDD convention in CLAUDE.md, write tests for the
-   new behaviour before implementing it. API tests go in `api/src/__tests__/`.
+   new behaviour before implementing it. API tests go in `api/src/__tests__/`. Tests require
+   `DATABASE_URL` (Postgres); see `helpers/postgres.ts`.
 
 5. **Implement the feature.** Follow patterns in the existing source files. Match the
    error codes, response shapes, and TypeScript conventions in CLAUDE.md.

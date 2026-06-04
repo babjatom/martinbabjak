@@ -48,7 +48,7 @@ racing at the transaction boundary.
 
 Assign an issue to `github-actions[bot]` or mention `@claude` in a comment.
 
-**Vercel hosting epic:** use the **Vercel hosting** issue template (label `vercel-hosting`), then assign the bot or comment `@claude` with the phase to run. See `CLAUDE.md` → *Vercel hosting migration*.
+Add label **`api`** or **`web`** (one only) via the matching issue template, then assign the bot or comment `@claude`. Label **`infra`** is human-only. See `CLAUDE.md` → *Agent workflows*.
 
 The agent:
 1. Reads the issue and `CLAUDE.md`

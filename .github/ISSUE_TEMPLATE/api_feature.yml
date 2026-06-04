@@ -1,0 +1,21 @@
+name: API feature
+description: Backend / api package work. Triggers Claude agent (Sonnet) when labeled api and @claude or bot assigned.
+title: "api: "
+labels:
+  - api
+body:
+  - type: markdown
+    value: |
+      Use **one** agent lane label: `api`, `web`, or `infra` (not multiple). `infra` is human-only.
+  - type: textarea
+    id: requirements
+    attributes:
+      label: Requirements
+      description: Acceptance criteria, endpoints, domain rules.
+    validations:
+      required: true
+  - type: textarea
+    id: notes
+    attributes:
+      label: Notes
+      description: Optional context, links, edge cases.

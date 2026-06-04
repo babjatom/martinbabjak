@@ -1,0 +1,17 @@
+name: Infra / CI
+description: Workflows, hosting, CI. Human-only — no Claude agent.
+title: "infra: "
+labels:
+  - infra
+body:
+  - type: markdown
+    value: |
+      **`infra` issues are not handled by the Claude agent.** Implement via human PR.
+      Do not use `@claude` expecting an agent run.
+  - type: textarea
+    id: requirements
+    attributes:
+      label: What to change
+      description: ci.yml, Vercel, secrets, docs, etc.
+    validations:
+      required: true
