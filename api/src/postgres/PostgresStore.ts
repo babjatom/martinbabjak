@@ -1,5 +1,5 @@
 import type { Pool, PoolClient } from 'pg';
-import type { Store, SeedSlot } from '../store-registry';
+import type { SeedSlot } from '../store-registry';
 import type { Booking } from '../bookings';
 import type { Slot } from '../slots';
 import { SlotAlreadyBookedError } from '../bookings';
@@ -52,21 +52,17 @@ function rowToBooking(row: {
 }
 
 /**
- * Postgres implementation of {@link Store}. Uses a transaction-scoped client
- * during {@link PostgresStore.transaction} so booking invariant checks and
+ * Postgres store. Uses a transaction-scoped client during
+ * {@link PostgresStore.transactionAsync} so booking invariant checks and
  * inserts share one connection.
  */
-export class PostgresStore implements Store {
+export class PostgresStore {
   private txClient: PoolClient | null = null;
 
   constructor(private readonly pool: Pool) {}
 
   private client(): Pool | PoolClient {
     return this.txClient ?? this.pool;
-  }
-
-  transaction<T>(_fn: () => T): T {
-    throw new Error('PostgresStore: use transactionAsync');
   }
 
   async transactionAsync<T>(fn: () => Promise<T>): Promise<T> {
@@ -86,10 +82,6 @@ export class PostgresStore implements Store {
     }
   }
 
-  getConfigRows(): { key: string; value: string }[] {
-    throw new Error('PostgresStore: use getConfigRowsAsync');
-  }
-
   async getConfigRowsAsync(): Promise<{ key: string; value: string }[]> {
     const res = await this.client().query<{ key: string; value: string }>(
       'SELECT key, value FROM page_config'
@@ -97,16 +89,8 @@ export class PostgresStore implements Store {
     return res.rows;
   }
 
-  setConfigValue(key: string, value: string): void {
-    void this.client().query('UPDATE page_config SET value = $1 WHERE key = $2', [value, key]);
-  }
-
   async setConfigValueAsync(key: string, value: string): Promise<void> {
     await this.client().query('UPDATE page_config SET value = $1 WHERE key = $2', [value, key]);
-  }
-
-  seedSlots(slots: SeedSlot[]): void {
-    void this.seedSlotsAsync(slots);
   }
 
   async seedSlotsAsync(slots: SeedSlot[]): Promise<void> {
@@ -118,10 +102,6 @@ export class PostgresStore implements Store {
         [slot.id, slot.label, slot.starts_at, slot.duration_m]
       );
     }
-  }
-
-  listAvailableSlots(): Slot[] {
-    throw new Error('PostgresStore: use listAvailableSlotsAsync');
   }
 
   async listAvailableSlotsAsync(): Promise<Slot[]> {
@@ -140,17 +120,9 @@ export class PostgresStore implements Store {
     return res.rows.map(rowToSlot);
   }
 
-  listAllSlots(): Slot[] {
-    throw new Error('PostgresStore: use listAllSlotsAsync');
-  }
-
   async listAllSlotsAsync(): Promise<Slot[]> {
     const res = await this.client().query('SELECT * FROM slots ORDER BY starts_at');
     return res.rows.map(rowToSlot);
-  }
-
-  slotExistsAndActive(_slotId: string): boolean {
-    throw new Error('PostgresStore: use slotExistsAndActiveAsync');
   }
 
   async slotExistsAndActiveAsync(slotId: string): Promise<boolean> {
@@ -162,10 +134,6 @@ export class PostgresStore implements Store {
     return parseInt(count, 10) > 0;
   }
 
-  insertSlot(slot: Slot): void {
-    void this.insertSlotAsync(slot);
-  }
-
   async insertSlotAsync(slot: Slot): Promise<void> {
     await this.client().query(
       `INSERT INTO slots (id, label, starts_at, duration_m, is_active)
@@ -174,20 +142,12 @@ export class PostgresStore implements Store {
     );
   }
 
-  deactivateSlot(_id: string): number {
-    throw new Error('PostgresStore: use deactivateSlotAsync');
-  }
-
   async deactivateSlotAsync(id: string): Promise<number> {
     const res = await this.client().query(
       'UPDATE slots SET is_active = 0 WHERE id = $1 AND is_active = 1',
       [id]
     );
     return res.rowCount ?? 0;
-  }
-
-  findBookingByIdempotencyKey(_key: string): Booking | undefined {
-    throw new Error('PostgresStore: use findBookingByIdempotencyKeyAsync');
   }
 
   async findBookingByIdempotencyKeyAsync(key: string): Promise<Booking | undefined> {
@@ -199,20 +159,12 @@ export class PostgresStore implements Store {
     return row ? rowToBooking(row) : undefined;
   }
 
-  findActiveBookingIdBySlot(_slotId: string): { id: string } | undefined {
-    throw new Error('PostgresStore: use findActiveBookingIdBySlotAsync');
-  }
-
   async findActiveBookingIdBySlotAsync(slotId: string): Promise<{ id: string } | undefined> {
     const res = await this.client().query<{ id: string }>(
       "SELECT id FROM bookings WHERE slot_id = $1 AND status = 'active'",
       [slotId]
     );
     return res.rows[0];
-  }
-
-  insertBooking(booking: Booking): void {
-    void this.insertBookingAsync(booking);
   }
 
   async insertBookingAsync(booking: Booking): Promise<void> {
@@ -240,18 +192,10 @@ export class PostgresStore implements Store {
     }
   }
 
-  getBookingById(_id: string): Booking | undefined {
-    throw new Error('PostgresStore: use getBookingByIdAsync');
-  }
-
   async getBookingByIdAsync(id: string): Promise<Booking | undefined> {
     const res = await this.client().query('SELECT * FROM bookings WHERE id = $1', [id]);
     const row = res.rows[0];
     return row ? rowToBooking(row) : undefined;
-  }
-
-  setBookingCancelled(id: string, cancelledAt: string): void {
-    void this.setBookingCancelledAsync(id, cancelledAt);
   }
 
   async setBookingCancelledAsync(id: string, cancelledAt: string): Promise<void> {
@@ -260,8 +204,4 @@ export class PostgresStore implements Store {
       [cancelledAt, id]
     );
   }
-}
-
-export function isPostgresStore(store: Store): store is PostgresStore {
-  return store instanceof PostgresStore;
 }

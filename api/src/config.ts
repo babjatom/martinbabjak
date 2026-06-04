@@ -1,5 +1,4 @@
 import { getStore } from './store-registry';
-import { isPostgresStore } from './postgres/PostgresStore';
 
 export interface PageConfig {
   title: string;
@@ -17,18 +16,11 @@ function rowsToConfig(rows: { key: string; value: string }[]): PageConfig {
 }
 
 export async function getConfig(): Promise<PageConfig> {
-  const store = getStore();
-  if (!isPostgresStore(store)) {
-    throw new Error('PostgresStore required');
-  }
-  return rowsToConfig(await store.getConfigRowsAsync());
+  return rowsToConfig(await getStore().getConfigRowsAsync());
 }
 
 export async function updateConfig(patch: Partial<PageConfig>): Promise<PageConfig> {
   const store = getStore();
-  if (!isPostgresStore(store)) {
-    throw new Error('PostgresStore required');
-  }
   await store.transactionAsync(async () => {
     for (const [key, value] of Object.entries(patch)) {
       if (value !== undefined) await store.setConfigValueAsync(key, value);

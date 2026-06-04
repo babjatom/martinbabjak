@@ -17,8 +17,7 @@ Read this before making any changes. These rules are non-negotiable constraints.
 
 ```
 api/src/
-  store-registry.ts    — Store interface + getStore/setStore
-  store.ts             — Re-exports registry
+  store-registry.ts    — SeedSlot + getStore/setStore (PostgresStore)
   postgres/            — PostgresStore, migrations, pool client
   bookings.ts          — Booking domain (Postgres)
   slots.ts, config.ts  — Domain modules
