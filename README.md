@@ -71,11 +71,12 @@ contribute, not enough to change branch protection.
 ## Running locally
 
 ```bash
-# API (port 3001)
-cd api && npm install && npm run dev
-
-# Frontend (port 3000)
+# Full stack (Next.js serves /api Route Handlers on port 3000)
+cd api && npm install && npm run build
 cd web && npm install && npm run dev
+
+# Optional: Express API only (port 3001)
+cd api && npm run dev
 
 # Tests
 cd api && npm test

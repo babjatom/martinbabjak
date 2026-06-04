@@ -1,6 +1,7 @@
 import { randomUUID } from 'crypto';
 import { getStore } from './store';
-import { slotExistsAndActive, SlotNotFoundError } from './slots';
+import { SlotNotFoundError } from './slots';
+import { isPostgresStore, PostgresStore } from './postgres/PostgresStore';
 
 export { SlotNotFoundError };
 
@@ -35,27 +36,33 @@ export class BookingAlreadyCancelledError extends Error {
   }
 }
 
-export function createBooking(params: {
+export async function createBooking(params: {
+  slot_id: string;
+  user_id: string;
+  idempotency_key: string;
+}): Promise<{ booking: Booking; created: boolean }> {
+  const store = getStore();
+  if (isPostgresStore(store)) {
+    return createBookingPostgres(store, params);
+  }
+  return createBookingSqlite(params);
+}
+
+function createBookingSqlite(params: {
   slot_id: string;
   user_id: string;
   idempotency_key: string;
 }): { booking: Booking; created: boolean } {
   const store = getStore();
 
-  if (!slotExistsAndActive(params.slot_id)) {
+  if (!store.slotExistsAndActive(params.slot_id)) {
     throw new SlotNotFoundError(params.slot_id);
   }
 
-  // Fast path: check idempotency before acquiring the write lock
   const existing = store.findBookingByIdempotencyKey(params.idempotency_key);
   if (existing) return { booking: existing, created: false };
 
-  // store.transaction runs atomically. For SQLite it uses BEGIN IMMEDIATE,
-  // acquiring the write lock at transaction start: two concurrent requests for
-  // the same slot serialize here — the second blocks until the first commits,
-  // then sees the committed booking and throws SlotAlreadyBookedError.
   const booking = store.transaction((): Booking => {
-    // Re-check idempotency inside the transaction to close the TOCTOU gap
     const idempotentMatch = store.findBookingByIdempotencyKey(params.idempotency_key);
     if (idempotentMatch) return idempotentMatch;
 
@@ -79,14 +86,67 @@ export function createBooking(params: {
   return { booking, created: true };
 }
 
-export function getBooking(id: string): Booking {
-  const booking = getStore().getBookingById(id);
+async function createBookingPostgres(
+  store: PostgresStore,
+  params: { slot_id: string; user_id: string; idempotency_key: string }
+): Promise<{ booking: Booking; created: boolean }> {
+  if (!(await store.slotExistsAndActiveAsync(params.slot_id))) {
+    throw new SlotNotFoundError(params.slot_id);
+  }
+
+  const existing = await store.findBookingByIdempotencyKeyAsync(params.idempotency_key);
+  if (existing) return { booking: existing, created: false };
+
+  const booking = await store.transactionAsync(async (): Promise<Booking> => {
+    const idempotentMatch = await store.findBookingByIdempotencyKeyAsync(params.idempotency_key);
+    if (idempotentMatch) return idempotentMatch;
+
+    const activeBooking = await store.findActiveBookingIdBySlotAsync(params.slot_id);
+    if (activeBooking) throw new SlotAlreadyBookedError(params.slot_id);
+
+    const newBooking: Booking = {
+      id: randomUUID(),
+      slot_id: params.slot_id,
+      user_id: params.user_id,
+      idempotency_key: params.idempotency_key,
+      status: 'active',
+      created_at: new Date().toISOString(),
+      cancelled_at: null,
+    };
+
+    await store.insertBookingAsync(newBooking);
+    return newBooking;
+  });
+
+  return { booking, created: true };
+}
+
+export async function getBooking(id: string): Promise<Booking> {
+  const store = getStore();
+  if (isPostgresStore(store)) {
+    const booking = await store.getBookingByIdAsync(id);
+    if (!booking) throw new BookingNotFoundError(id);
+    return booking;
+  }
+  const booking = store.getBookingById(id);
   if (!booking) throw new BookingNotFoundError(id);
   return booking;
 }
 
-export function cancelBooking(id: string): Booking {
+export async function cancelBooking(id: string): Promise<Booking> {
   const store = getStore();
+  if (isPostgresStore(store)) {
+    return store.transactionAsync(async (): Promise<Booking> => {
+      const booking = await store.getBookingByIdAsync(id);
+      if (!booking) throw new BookingNotFoundError(id);
+      if (booking.status === 'cancelled') throw new BookingAlreadyCancelledError(id);
+
+      const cancelledAt = new Date().toISOString();
+      await store.setBookingCancelledAsync(id, cancelledAt);
+
+      return { ...booking, status: 'cancelled', cancelled_at: cancelledAt };
+    });
+  }
 
   return store.transaction((): Booking => {
     const booking = store.getBookingById(id);
