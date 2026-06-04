@@ -80,6 +80,14 @@ export default function BookingSheet({
       setSelectedDate(dates[0] ?? null);
     }
     dialogRef.current?.showModal();
+    // Scroll to the full-panel snap point so the sheet is visible in the
+    // viewport immediately instead of hiding below the peek sentinel.
+    requestAnimationFrame(() => {
+      const host = scrollHostRef.current;
+      if (host) {
+        host.scrollTop = host.scrollHeight;
+      }
+    });
   }, [dates]);
 
   const closeSheet = useCallback((): void => {

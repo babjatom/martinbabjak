@@ -1,10 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import type { PageConfig, Slot, Booking } from '@/types';
 import BookingHero from './BookingHero';
 import SlotGrid from './SlotGrid';
-import BookingModal from './BookingModal';
+import BookingSheet, { type BookingSheetHandle } from './BookingSheet';
 import EditPanel from './EditPanel';
 import StickyBookBar from './StickyBookBar';
 import TherapistCards from './TherapistCards';
@@ -18,12 +18,11 @@ export default function BookingPage({ initialConfig, initialSlots }: Props): Rea
   const [config, setConfig] = useState<PageConfig>(initialConfig);
   const [slots, setSlots] = useState<Slot[]>(initialSlots);
   const [isEditOpen, setIsEditOpen] = useState(false);
-  const [selectedSlot, setSelectedSlot] = useState<Slot | null>(null);
   const [completedBooking, setCompletedBooking] = useState<Booking | null>(null);
+  const sheetHandleRef = useRef<BookingSheetHandle | null>(null);
 
   const handleBookingComplete = (booking: Booking): void => {
     setCompletedBooking(booking);
-    setSelectedSlot(null);
     // Remove the booked slot from available list
     setSlots((prev) => prev.filter((s) => s.id !== booking.slot_id));
   };
@@ -32,10 +31,18 @@ export default function BookingPage({ initialConfig, initialSlots }: Props): Rea
     setSlots(updated.filter((s) => s.is_active === 1));
   };
 
-  const handleBookBarClick = (): void => {
-    if (slots.length > 0) {
-      setSelectedSlot(slots[0]);
-    }
+  const handleSlotsRefresh = (): void => {
+    void (async () => {
+      const res = await fetch('/api/slots');
+      if (res.ok) {
+        const data = (await res.json()) as { slots: Slot[] };
+        setSlots(data.slots.filter((s) => s.is_active === 1));
+      }
+    })();
+  };
+
+  const handleOpenSheet = (slot?: Slot): void => {
+    sheetHandleRef.current?.open(slot);
   };
 
   return (
@@ -48,7 +55,7 @@ export default function BookingPage({ initialConfig, initialSlots }: Props): Rea
 
       <section className="w-full py-6">
         <h2 className="text-lg font-semibold text-gray-900 px-4 mb-3">Your therapist</h2>
-        <TherapistCards onOpenBooking={handleBookBarClick} />
+        <TherapistCards onOpenBooking={() => handleOpenSheet()} />
       </section>
 
       <main className="flex-1 max-w-5xl mx-auto w-full px-4 py-12">
@@ -73,20 +80,19 @@ export default function BookingPage({ initialConfig, initialSlots }: Props): Rea
         ) : (
           <SlotGrid
             slots={slots}
-            onBook={setSelectedSlot}
+            onBook={(slot) => handleOpenSheet(slot)}
             isEditOpen={isEditOpen}
             onSlotsChange={handleSlotsChange}
           />
         )}
       </main>
 
-      {selectedSlot && (
-        <BookingModal
-          slot={selectedSlot}
-          onClose={() => setSelectedSlot(null)}
-          onSuccess={handleBookingComplete}
-        />
-      )}
+      <BookingSheet
+        slots={slots}
+        onBooked={handleBookingComplete}
+        onSlotsRefresh={handleSlotsRefresh}
+        handleRef={(handle) => { sheetHandleRef.current = handle; }}
+      />
 
       <EditPanel
         isOpen={isEditOpen}
@@ -96,7 +102,7 @@ export default function BookingPage({ initialConfig, initialSlots }: Props): Rea
         onClose={() => setIsEditOpen(false)}
       />
 
-      <StickyBookBar onBookClick={handleBookBarClick} />
+      <StickyBookBar onBookClick={() => handleOpenSheet()} />
 
       <button
         onClick={() => setIsEditOpen((o) => !o)}
