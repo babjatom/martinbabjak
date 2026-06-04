@@ -2,44 +2,39 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Sticky Book Bar */
-.sticky-book-bar {
+/* ─── Sticky Book Bar ─────────────────────────────────────────── */
+
+/* Sentinel: sticky wrapper registered as a scroll-state container so
+   the inner bar can query its own stuck state via @container. */
+.sticky-book-bar-sentinel {
   position: sticky;
   bottom: 0;
-  left: 0;
-  right: 0;
   z-index: 30;
-  background: white;
+  container-type: scroll-state;
+  container-name: sticky-bar;
+}
+
+.sticky-book-bar {
+  background-color: #ffffff;
   padding: 1rem;
   display: flex;
   justify-content: center;
+  border-top: 1px solid transparent;
+  transition: box-shadow 0.2s ease, border-color 0.2s ease;
 }
 
-/* Graceful degradation: without scroll-state support, just use sticky with border/shadow */
-@supports not (animation: scroll-state(stuck)) {
+@media (prefers-reduced-motion: reduce) {
   .sticky-book-bar {
-    border-top: 1px solid #e5e7eb;
-    box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.05);
+    transition: none;
   }
 }
 
-/* With scroll-state support, style changes when stuck */
-@supports (animation: scroll-state(stuck)) {
+/* Elevate bar when stuck at viewport bottom.
+   Degrades gracefully: browsers without scroll-state ignore this block. */
+@container sticky-bar scroll-state(stuck: bottom) {
   .sticky-book-bar {
-    animation: sticky-lift-on-stuck linear;
-    animation-timeline: view();
-  }
-
-  @keyframes sticky-lift-on-stuck {
-    entry 0% {
-      border-top: 1px solid transparent;
-      box-shadow: none;
-    }
-    entry 100%,
-    cover 0% {
-      border-top: 1px solid #e5e7eb;
-      box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.05);
-    }
+    border-top-color: #e5e7eb;
+    box-shadow: 0 -2px 8px rgb(0 0 0 / 0.08);
   }
 }
 
