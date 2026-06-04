@@ -109,3 +109,378 @@
     transform: scale(1.04);
   }
 }
+
+/* ─── BookingSheet ────────────────────────────────────────────── */
+
+/* <dialog> reset — fills viewport, transparent bg so we can draw
+   our own backdrop via ::backdrop */
+.booking-sheet-dialog {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  max-width: 100%;
+  max-height: 100%;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  overflow: hidden;
+}
+
+.booking-sheet-dialog::backdrop {
+  background: rgb(0 0 0 / 0.45);
+}
+
+/* Scroll host — full-height column; scroll-snap-type on the Y axis
+   drives peek / half / full snapping. */
+.booking-sheet-scroll-host {
+  width: 100%;
+  height: 100%;
+  overflow-y: scroll;
+  scroll-snap-type: y mandatory;
+  /* hide scrollbar visually */
+  scrollbar-width: none;
+}
+
+.booking-sheet-scroll-host::-webkit-scrollbar {
+  display: none;
+}
+
+/* Snap sentinel spacers */
+.booking-sheet-snap-peek {
+  flex-shrink: 0;
+  /* takes up ~90% of viewport, pushing the sheet to a "peek" position */
+  height: 90dvh;
+  scroll-snap-align: start;
+}
+
+.booking-sheet-snap-half {
+  flex-shrink: 0;
+  /* spacer so sheet is at 50% when snapped here */
+  height: 50dvh;
+  scroll-snap-align: start;
+}
+
+/* The panel itself snaps to full when scrolled to its top edge */
+.booking-sheet-snap-full {
+  scroll-snap-align: start;
+}
+
+/* Sheet panel */
+.booking-sheet-panel {
+  position: relative;
+  min-height: 100dvh;
+  background: #fff;
+  border-radius: 1.25rem 1.25rem 0 0;
+  padding: 1rem 1.25rem 2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+/* Drag handle pill */
+.booking-sheet-handle {
+  width: 2.5rem;
+  height: 0.25rem;
+  background: #d1d5db;
+  border-radius: 9999px;
+  align-self: center;
+  flex-shrink: 0;
+}
+
+/* Close button */
+.booking-sheet-close {
+  position: absolute;
+  top: 0.875rem;
+  right: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 9999px;
+  border: none;
+  background: #f3f4f6;
+  color: #6b7280;
+  cursor: pointer;
+  transition: background 150ms ease, color 150ms ease;
+}
+
+.booking-sheet-close:hover {
+  background: #e5e7eb;
+  color: #111827;
+}
+
+.booking-sheet-close:focus-visible {
+  outline: 2px solid #4f46e5;
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .booking-sheet-close {
+    transition: none;
+  }
+}
+
+/* Title */
+.booking-sheet-title {
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: #111827;
+  margin: 0;
+  padding-right: 2.5rem; /* avoid overlap with close btn */
+}
+
+/* Section label */
+.booking-sheet-section-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #6b7280;
+  margin: 0 0 0.5rem;
+}
+
+/* ── Date strip (horizontal scroll-snap) ── */
+.booking-sheet-date-section {
+  display: flex;
+  flex-direction: column;
+}
+
+.booking-sheet-date-strip {
+  display: flex;
+  gap: 0.5rem;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  padding-bottom: 0.25rem;
+  scrollbar-width: none;
+}
+
+.booking-sheet-date-strip::-webkit-scrollbar {
+  display: none;
+}
+
+.booking-sheet-date-chip {
+  flex-shrink: 0;
+  scroll-snap-align: start;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 3rem;
+  padding: 0.5rem 0.625rem;
+  border-radius: 0.75rem;
+  border: 1.5px solid #e5e7eb;
+  background: #fff;
+  cursor: pointer;
+  transition: border-color 150ms ease, background 150ms ease, color 150ms ease;
+  /* min 44px touch target */
+  min-height: 2.75rem;
+}
+
+.booking-sheet-date-chip:focus-visible {
+  outline: 2px solid #4f46e5;
+  outline-offset: 2px;
+}
+
+.booking-sheet-date-chip.is-selected {
+  border-color: #4f46e5;
+  background: #4f46e5;
+  color: #fff;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .booking-sheet-date-chip {
+    transition: none;
+  }
+}
+
+.booking-sheet-date-chip__dow {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  opacity: 0.7;
+}
+
+.booking-sheet-date-chip.is-selected .booking-sheet-date-chip__dow {
+  opacity: 0.85;
+}
+
+.booking-sheet-date-chip__day {
+  font-size: 1.0625rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+/* ── Time grid (2 columns) ── */
+.booking-sheet-time-section {
+  display: flex;
+  flex-direction: column;
+}
+
+.booking-sheet-time-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+}
+
+.booking-sheet-time-chip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.625rem 0.875rem;
+  min-height: 2.75rem; /* 44px touch target */
+  border-radius: 0.75rem;
+  border: 1.5px solid #e5e7eb;
+  background: #fff;
+  cursor: pointer;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #111827;
+  transition: border-color 150ms ease, background 150ms ease, color 150ms ease;
+  /* stagger via sibling-index() — progressive enhancement */
+  animation: chip-fade-in 220ms ease both;
+  animation-delay: calc(var(--chip-index, 0) * 40ms);
+}
+
+@keyframes chip-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .booking-sheet-time-chip {
+    animation: none;
+    transition: none;
+  }
+}
+
+.booking-sheet-time-chip:focus-visible {
+  outline: 2px solid #4f46e5;
+  outline-offset: 2px;
+}
+
+.booking-sheet-time-chip.is-selected {
+  border-color: #4f46e5;
+  background: #4f46e5;
+  color: #fff;
+}
+
+.booking-sheet-time-chip.is-unavailable {
+  opacity: 0.4;
+  cursor: not-allowed;
+  text-decoration: line-through;
+}
+
+.booking-sheet-time-chip__dur {
+  font-size: 0.6875rem;
+  opacity: 0.65;
+  margin-left: 0.25rem;
+}
+
+/* ── Selected slot summary ── */
+.booking-sheet-summary {
+  font-size: 0.875rem;
+  color: #4f46e5;
+  font-weight: 600;
+  padding: 0.625rem 0.875rem;
+  background: #eef2ff;
+  border-radius: 0.75rem;
+}
+
+/* ── Confirm form ── */
+.booking-sheet-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.booking-sheet-form__label {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #374151;
+}
+
+.booking-sheet-form__input {
+  width: 100%;
+  border: 1.5px solid #d1d5db;
+  border-radius: 0.625rem;
+  padding: 0.625rem 0.875rem;
+  font-size: 0.9375rem;
+  color: #111827;
+  background: #fff;
+  transition: border-color 150ms ease, box-shadow 150ms ease;
+  /* avoid iOS zoom on focus */
+  font-size: max(16px, 0.9375rem);
+}
+
+.booking-sheet-form__input:focus {
+  outline: none;
+  border-color: #4f46e5;
+  box-shadow: 0 0 0 3px rgb(79 70 229 / 0.15);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .booking-sheet-form__input {
+    transition: none;
+  }
+}
+
+.booking-sheet-form__error {
+  font-size: 0.875rem;
+  color: #dc2626;
+  background: #fef2f2;
+  border-radius: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  margin: 0;
+}
+
+.booking-sheet-form__success {
+  font-size: 0.875rem;
+  color: #16a34a;
+  background: #f0fdf4;
+  border-radius: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  margin: 0;
+}
+
+.booking-sheet-form__submit {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border: none;
+  border-radius: 0.75rem;
+  background: #4f46e5;
+  color: #fff;
+  font-size: 0.9375rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 150ms ease;
+  min-height: 2.75rem;
+}
+
+.booking-sheet-form__submit:hover:not(:disabled) {
+  background: #4338ca;
+}
+
+.booking-sheet-form__submit:focus-visible {
+  outline: 2px solid #4f46e5;
+  outline-offset: 2px;
+}
+
+.booking-sheet-form__submit:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .booking-sheet-form__submit {
+    transition: none;
+  }
+}
