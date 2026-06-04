@@ -7,6 +7,8 @@ import EditPanel from './EditPanel';
 import StickyBookBar from './StickyBookBar';
 import TherapistCards from './TherapistCards';
 import BookingSheet, { type BookingSheetHandle } from './BookingSheet';
+import MyReservations, { appendBookingId } from './MyReservations';
+import ClinicMap from './ClinicMap';
 
 interface Props {
   initialConfig: PageConfig;
@@ -23,6 +25,8 @@ export default function BookingPage({ initialConfig, initialSlots }: Props): Rea
 
   const handleBookingComplete = (booking: Booking): void => {
     setCompletedBooking(booking);
+    // Persist booking id so MyReservations can display it on next load
+    appendBookingId(booking.id);
     // Remove the booked slot from available list
     setSlots((prev) => prev.filter((s) => s.id !== booking.slot_id));
   };
@@ -87,6 +91,10 @@ export default function BookingPage({ initialConfig, initialSlots }: Props): Rea
           </p>
         )}
       </main>
+
+      <MyReservations />
+
+      <ClinicMap />
 
       {/* Sheet is always rendered but only opens when triggered — never visible on page load */}
       <BookingSheet
