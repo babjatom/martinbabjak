@@ -13,10 +13,24 @@ For issues labeled **`web`** only (Sonnet lane). Use **`api`** label and `implem
 ## Efficiency
 
 - Implement **only** scope and files named in the issue (ignore parent epic sections unless the issue says to implement them).
+- Do **not** implement other issue numbers or “optional” sibling issues mentioned elsewhere.
 - Read listed files before editing; avoid broad repo exploration.
 - Run **`cd web && npm run typecheck && npm run lint` once** before commit when `web/` changed.
 - Run **`npm run build`** only when the issue acceptance checklist explicitly requires it.
 - Prefer **one commit**, then open the PR; do not re-run verification after a clean pass.
+- Do **not** enable or invoke MCP tools in CI unless the issue requires it.
+
+## Architecture gotchas (web)
+
+| Topic | Fact |
+|-------|------|
+| Book UI | `BookingSheet` on `BookingPage` via `handleRef` / `onBooked`; no `BookingModal` after #10/#17. |
+| Reservations hook | Extend `handleBookingComplete` in `BookingPage` for `localStorage` key `booking_ids`. |
+| API | Same-origin `/api/*`; `DATABASE_URL` on Vercel; DDL in `migrations-sql.ts` (bundled). |
+| Demo slots | `seedSlotsAsync` skipped when `VERCEL_ENV=production`; owners use Edit panel + `POST /api/slots`. |
+| Turn limit | Push branch, open/update PR, comment remaining work; human may comment `@claude continue — finish PR only; files: …` |
+
+Ready-to-paste issue bodies for epic children: `docs/agent-issues/`.
 
 ## Steps
 

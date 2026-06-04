@@ -7,15 +7,46 @@ body:
   - type: markdown
     value: |
       Use **one** agent lane label: `api`, `web`, or `infra` (not multiple). `infra` is human-only.
+      Do **not** paste parent epic text or other issue numbers into this form — link the epic in **Depends on** only.
   - type: textarea
-    id: requirements
+    id: scope
     attributes:
-      label: Requirements
-      description: UI, pages, components, same-origin /api usage.
+      label: Scope (this issue only)
+      description: What to build. End with explicit **Out of scope** bullets.
+    validations:
+      required: true
+  - type: textarea
+    id: files
+    attributes:
+      label: Files
+      description: "Bullet list of paths the agent may edit (e.g. web/src/components/Foo.tsx)."
+    validations:
+      required: true
+  - type: input
+    id: depends_on
+    attributes:
+      label: Depends on (optional)
+      description: "e.g. #10 merged — agent should not re-implement dependency work."
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance
+      description: Checklist. Include `cd web && npm run typecheck && npm run lint` unless noted.
+    validations:
+      required: true
+  - type: textarea
+    id: agent_briefing
+    attributes:
+      label: Agent briefing
+      description: Frozen facts for the bot (book UI, API keys, hooks). Update when architecture changes.
+      value: |
+        - Booking entry: `BookingSheet` on `BookingPage`; success via `onBooked` / `handleBookingComplete`.
+        - Same-origin `/api/*`; Vercel needs `DATABASE_URL`; schema in `api/src/postgres/migrations-sql.ts`.
+        - Demo slot seeds skipped when `VERCEL_ENV=production` (owners add slots via Edit panel).
     validations:
       required: true
   - type: textarea
     id: notes
     attributes:
       label: Notes
-      description: Optional mocks, screenshots, constraints.
+      description: Optional mocks, screenshots, extra constraints.

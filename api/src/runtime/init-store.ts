@@ -1,4 +1,5 @@
 import { setStore } from '../store-registry';
+import { shouldSeedDemoSlots } from './demo-seed';
 import { seedSlotsAsync } from '../slots';
 import { getPool, applyMigrations } from '../postgres/client';
 import { PostgresStore } from '../postgres/PostgresStore';
@@ -11,5 +12,7 @@ export async function initApiStore(): Promise<void> {
   const pool = getPool();
   await applyMigrations(pool);
   setStore(new PostgresStore(pool));
-  await seedSlotsAsync();
+  if (shouldSeedDemoSlots()) {
+    await seedSlotsAsync();
+  }
 }
