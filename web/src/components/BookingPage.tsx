@@ -4,7 +4,8 @@ import { useState } from 'react';
 import type { PageConfig, Slot, Booking } from '@/types';
 import BookingHero from './BookingHero';
 import SlotGrid from './SlotGrid';
-import BookingModal from './BookingModal';
+import BookingSheet from './BookingSheet';
+import type { BookingSheetHandle } from './BookingSheet';
 import EditPanel from './EditPanel';
 import StickyBookBar from './StickyBookBar';
 import TherapistCards from './TherapistCards';
@@ -18,12 +19,11 @@ export default function BookingPage({ initialConfig, initialSlots }: Props): Rea
   const [config, setConfig] = useState<PageConfig>(initialConfig);
   const [slots, setSlots] = useState<Slot[]>(initialSlots);
   const [isEditOpen, setIsEditOpen] = useState(false);
-  const [selectedSlot, setSelectedSlot] = useState<Slot | null>(null);
+  const [sheetHandle, setSheetHandle] = useState<BookingSheetHandle | null>(null);
   const [completedBooking, setCompletedBooking] = useState<Booking | null>(null);
 
   const handleBookingComplete = (booking: Booking): void => {
     setCompletedBooking(booking);
-    setSelectedSlot(null);
     // Remove the booked slot from available list
     setSlots((prev) => prev.filter((s) => s.id !== booking.slot_id));
   };
@@ -33,9 +33,11 @@ export default function BookingPage({ initialConfig, initialSlots }: Props): Rea
   };
 
   const handleBookBarClick = (): void => {
-    if (slots.length > 0) {
-      setSelectedSlot(slots[0]);
-    }
+    sheetHandle?.open();
+  };
+
+  const handleBookSlot = (slot: Slot): void => {
+    sheetHandle?.open(slot);
   };
 
   return (
@@ -73,20 +75,19 @@ export default function BookingPage({ initialConfig, initialSlots }: Props): Rea
         ) : (
           <SlotGrid
             slots={slots}
-            onBook={setSelectedSlot}
+            onBook={handleBookSlot}
             isEditOpen={isEditOpen}
             onSlotsChange={handleSlotsChange}
           />
         )}
       </main>
 
-      {selectedSlot && (
-        <BookingModal
-          slot={selectedSlot}
-          onClose={() => setSelectedSlot(null)}
-          onSuccess={handleBookingComplete}
-        />
-      )}
+      <BookingSheet
+        slots={slots}
+        onBooked={handleBookingComplete}
+        onSlotsRefresh={() => { /* slots stay fresh from local state */ }}
+        handleRef={setSheetHandle}
+      />
 
       <EditPanel
         isOpen={isEditOpen}
