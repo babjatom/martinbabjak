@@ -125,6 +125,10 @@ Workflow: `.github/workflows/agent.yml`. Trigger: `@claude` in title/body/commen
 
 Use **one** of `api` or `web` per issue (not both). Issue templates: `api_feature`, `web_feature`, `infra_task`.
 
+Web lane caps (see `agent.yml`): **65** turns, **$4** budget. Issues must list **Files** and **Scope** only — no epic paste.
+
+**Agent gotchas (web):** Book via `BookingSheet` / `handleBookingComplete`; route handlers use `jsonFromHandler(() => …)` after `initApiStore`; demo slot seeds off on Vercel production (`api/src/runtime/demo-seed.ts`); never edit `concurrency.test.ts`.
+
 ## Hosting
 
 - API surface: Next Route Handlers under `web/src/app/api/` (`runtime = 'nodejs'`); shared handlers in `api/src/http/`.

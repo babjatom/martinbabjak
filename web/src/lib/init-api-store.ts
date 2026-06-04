@@ -1,6 +1,7 @@
 import { applyMigrations, getPool } from '../../../api/src/postgres/client';
 import { PostgresStore } from '../../../api/src/postgres/PostgresStore';
 import { setStore } from '../../../api/src/store-registry';
+import { shouldSeedDemoSlots } from '../../../api/src/runtime/demo-seed';
 import { seedSlotsAsync } from '../../../api/src/slots';
 
 /**
@@ -15,5 +16,7 @@ export async function initApiStore(): Promise<void> {
   const pool = getPool();
   await applyMigrations(pool);
   setStore(new PostgresStore(pool));
-  await seedSlotsAsync();
+  if (shouldSeedDemoSlots()) {
+    await seedSlotsAsync();
+  }
 }

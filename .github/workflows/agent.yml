@@ -13,6 +13,7 @@ jobs:
       run: ${{ steps.eval.outputs.run }}
       model: ${{ steps.eval.outputs.model }}
       max_turns: ${{ steps.eval.outputs.max_turns }}
+      max_budget_usd: ${{ steps.eval.outputs.max_budget_usd }}
       task_file: ${{ steps.eval.outputs.task_file }}
       system_prompt: ${{ steps.eval.outputs.system_prompt }}
     permissions:
@@ -85,6 +86,7 @@ jobs:
               core.setOutput('run', 'true');
               core.setOutput('model', 'claude-sonnet-4-6');
               core.setOutput('max_turns', '20');
+              core.setOutput('max_budget_usd', '3');
               core.setOutput('task_file', 'implement-feature.md');
               core.setOutput(
                 'system_prompt',
@@ -96,7 +98,8 @@ jobs:
             if (hasWeb) {
               core.setOutput('run', 'true');
               core.setOutput('model', 'claude-sonnet-4-6');
-              core.setOutput('max_turns', '50');
+              core.setOutput('max_turns', '65');
+              core.setOutput('max_budget_usd', '4');
               core.setOutput('task_file', 'implement-feature-web.md');
               core.setOutput(
                 'system_prompt',
@@ -151,7 +154,12 @@ jobs:
             - CLAUDE.md
             - .github/agent-tasks/${{ needs.gate.outputs.task_file }}
 
-            Implement the work requested in the issue/comment.
+            Implement **only** the issue titled above. Do **not** implement other issue numbers,
+            "optional" sections, or parent epic scope unless this issue's **Scope** section requires it.
+            If the issue lists **Files**, read only those paths plus direct imports; no repo-wide search
+            unless blocked. On turn limit or incomplete work: push the branch if any commits exist,
+            open or update the PR, and comment what remains.
+
             Open a PR targeting main with a clear description and test plan. Do not merge.
 
             Efficiency: touch only files named in the issue. Run `cd web && npm run typecheck && npm run lint`
@@ -159,9 +167,9 @@ jobs:
           claude_args: |
             --model ${{ needs.gate.outputs.model }}
             --max-turns ${{ needs.gate.outputs.max_turns }}
-            --max-budget-usd 3
+            --max-budget-usd ${{ needs.gate.outputs.max_budget_usd }}
             --system-prompt "${{ needs.gate.outputs.system_prompt }}"
-            --append-system-prompt "Efficiency: edit only files listed in the issue; do not use MCP unless the issue requires it; run cd web && npm run typecheck && npm run lint once before commit when web/ changed; run npm run build only if issue acceptance requires it; one commit then open PR; do not re-run verification after a clean pass."
+            --append-system-prompt "Efficiency: edit only files listed in the issue; do not enable or invoke MCP tools; run cd web && npm run typecheck && npm run lint once before commit when web/ changed; run npm run build only if issue acceptance requires it; one commit then open PR; do not re-run verification after a clean pass. If interrupted by turn limit, push branch and comment remaining checklist items."
             --permission-mode bypassPermissions
             --allowedTools "Bash,Edit,Read,Write,Glob,Grep"
             --allowedTools "Bash(npm run *),Bash(cd *),Bash(npx *),Bash(git *)"
