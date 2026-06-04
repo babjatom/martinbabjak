@@ -1,5 +1,5 @@
 import { randomUUID } from 'crypto';
-import { getStore } from './store';
+import { getStore } from './store-registry';
 import { SlotNotFoundError } from './slots';
 import { isPostgresStore, PostgresStore } from './postgres/PostgresStore';
 
@@ -42,48 +42,10 @@ export async function createBooking(params: {
   idempotency_key: string;
 }): Promise<{ booking: Booking; created: boolean }> {
   const store = getStore();
-  if (isPostgresStore(store)) {
-    return createBookingPostgres(store, params);
+  if (!isPostgresStore(store)) {
+    throw new Error('PostgresStore required');
   }
-  return createBookingSqlite(params);
-}
-
-function createBookingSqlite(params: {
-  slot_id: string;
-  user_id: string;
-  idempotency_key: string;
-}): { booking: Booking; created: boolean } {
-  const store = getStore();
-
-  if (!store.slotExistsAndActive(params.slot_id)) {
-    throw new SlotNotFoundError(params.slot_id);
-  }
-
-  const existing = store.findBookingByIdempotencyKey(params.idempotency_key);
-  if (existing) return { booking: existing, created: false };
-
-  const booking = store.transaction((): Booking => {
-    const idempotentMatch = store.findBookingByIdempotencyKey(params.idempotency_key);
-    if (idempotentMatch) return idempotentMatch;
-
-    const activeBooking = store.findActiveBookingIdBySlot(params.slot_id);
-    if (activeBooking) throw new SlotAlreadyBookedError(params.slot_id);
-
-    const newBooking: Booking = {
-      id: randomUUID(),
-      slot_id: params.slot_id,
-      user_id: params.user_id,
-      idempotency_key: params.idempotency_key,
-      status: 'active',
-      created_at: new Date().toISOString(),
-      cancelled_at: null,
-    };
-
-    store.insertBooking(newBooking);
-    return newBooking;
-  });
-
-  return { booking, created: true };
+  return createBookingPostgres(store, params);
 }
 
 async function createBookingPostgres(
@@ -123,38 +85,26 @@ async function createBookingPostgres(
 
 export async function getBooking(id: string): Promise<Booking> {
   const store = getStore();
-  if (isPostgresStore(store)) {
-    const booking = await store.getBookingByIdAsync(id);
-    if (!booking) throw new BookingNotFoundError(id);
-    return booking;
+  if (!isPostgresStore(store)) {
+    throw new Error('PostgresStore required');
   }
-  const booking = store.getBookingById(id);
+  const booking = await store.getBookingByIdAsync(id);
   if (!booking) throw new BookingNotFoundError(id);
   return booking;
 }
 
 export async function cancelBooking(id: string): Promise<Booking> {
   const store = getStore();
-  if (isPostgresStore(store)) {
-    return store.transactionAsync(async (): Promise<Booking> => {
-      const booking = await store.getBookingByIdAsync(id);
-      if (!booking) throw new BookingNotFoundError(id);
-      if (booking.status === 'cancelled') throw new BookingAlreadyCancelledError(id);
-
-      const cancelledAt = new Date().toISOString();
-      await store.setBookingCancelledAsync(id, cancelledAt);
-
-      return { ...booking, status: 'cancelled', cancelled_at: cancelledAt };
-    });
+  if (!isPostgresStore(store)) {
+    throw new Error('PostgresStore required');
   }
-
-  return store.transaction((): Booking => {
-    const booking = store.getBookingById(id);
+  return store.transactionAsync(async (): Promise<Booking> => {
+    const booking = await store.getBookingByIdAsync(id);
     if (!booking) throw new BookingNotFoundError(id);
     if (booking.status === 'cancelled') throw new BookingAlreadyCancelledError(id);
 
     const cancelledAt = new Date().toISOString();
-    store.setBookingCancelled(id, cancelledAt);
+    await store.setBookingCancelledAsync(id, cancelledAt);
 
     return { ...booking, status: 'cancelled', cancelled_at: cancelledAt };
   });

@@ -1,6 +1,6 @@
 import { applyMigrations, getPool } from '../../../api/src/postgres/client';
 import { PostgresStore } from '../../../api/src/postgres/PostgresStore';
-import { setStore } from '../../../api/src/store';
+import { setStore } from '../../../api/src/store-registry';
 import { seedSlotsAsync } from '../../../api/src/slots';
 
 /**

@@ -1,5 +1,5 @@
 import type { Pool, PoolClient } from 'pg';
-import type { Store, SeedSlot } from '../store';
+import type { Store, SeedSlot } from '../store-registry';
 import type { Booking } from '../bookings';
 import type { Slot } from '../slots';
 import { SlotAlreadyBookedError } from '../bookings';

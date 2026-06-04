@@ -1,11 +1,14 @@
 import { createApp } from './app';
-import { seedSlots } from './slots';
+import { initApiStore } from './runtime/init-store';
 
 const PORT = Number(process.env['PORT'] ?? 3001);
 
-seedSlots();
-const app = createApp();
+async function main(): Promise<void> {
+  await initApiStore();
+  const app = createApp();
+  app.listen(PORT, () => {
+    console.warn(`Booking API listening on port ${PORT}`);
+  });
+}
 
-app.listen(PORT, () => {
-  console.warn(`Booking API listening on port ${PORT}`);
-});
+void main();

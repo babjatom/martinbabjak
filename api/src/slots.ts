@@ -1,5 +1,5 @@
 import { randomUUID } from 'crypto';
-import { getStore } from './store';
+import { getStore } from './store-registry';
 import { isPostgresStore } from './postgres/PostgresStore';
 
 export interface Slot {
@@ -25,46 +25,36 @@ const SEED_SLOTS: Omit<Slot, 'is_active'>[] = [
   { id: 'slot-005', label: 'Tuesday 09:30', starts_at: '2026-07-07T09:30:00Z', duration_m: 30 },
 ];
 
-export function seedSlots(): void {
-  const store = getStore();
-  if (isPostgresStore(store)) {
-    void store.seedSlotsAsync(SEED_SLOTS);
-    return;
-  }
-  getStore().seedSlots(SEED_SLOTS);
-}
-
 export async function seedSlotsAsync(): Promise<void> {
   const store = getStore();
-  if (isPostgresStore(store)) {
-    await store.seedSlotsAsync(SEED_SLOTS);
-    return;
+  if (!isPostgresStore(store)) {
+    throw new Error('PostgresStore required');
   }
-  getStore().seedSlots(SEED_SLOTS);
+  await store.seedSlotsAsync(SEED_SLOTS);
 }
 
 export async function listAvailableSlots(): Promise<Slot[]> {
   const store = getStore();
-  if (isPostgresStore(store)) {
-    return store.listAvailableSlotsAsync();
+  if (!isPostgresStore(store)) {
+    throw new Error('PostgresStore required');
   }
-  return store.listAvailableSlots();
+  return store.listAvailableSlotsAsync();
 }
 
 export async function listAllSlots(): Promise<Slot[]> {
   const store = getStore();
-  if (isPostgresStore(store)) {
-    return store.listAllSlotsAsync();
+  if (!isPostgresStore(store)) {
+    throw new Error('PostgresStore required');
   }
-  return store.listAllSlots();
+  return store.listAllSlotsAsync();
 }
 
 export async function slotExistsAndActive(slotId: string): Promise<boolean> {
   const store = getStore();
-  if (isPostgresStore(store)) {
-    return store.slotExistsAndActiveAsync(slotId);
+  if (!isPostgresStore(store)) {
+    throw new Error('PostgresStore required');
   }
-  return store.slotExistsAndActive(slotId);
+  return store.slotExistsAndActiveAsync(slotId);
 }
 
 export async function createSlot(params: {
@@ -82,18 +72,18 @@ export async function createSlot(params: {
     is_active: 1,
   };
   const store = getStore();
-  if (isPostgresStore(store)) {
-    await store.insertSlotAsync(slot);
-  } else {
-    store.insertSlot(slot);
+  if (!isPostgresStore(store)) {
+    throw new Error('PostgresStore required');
   }
+  await store.insertSlotAsync(slot);
   return slot;
 }
 
 export async function deactivateSlot(id: string): Promise<void> {
   const store = getStore();
-  const changes = isPostgresStore(store)
-    ? await store.deactivateSlotAsync(id)
-    : store.deactivateSlot(id);
+  if (!isPostgresStore(store)) {
+    throw new Error('PostgresStore required');
+  }
+  const changes = await store.deactivateSlotAsync(id);
   if (changes === 0) throw new SlotNotFoundError(id);
 }

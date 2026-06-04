@@ -1,21 +1,13 @@
-import { describe, it, expect, beforeEach, afterAll } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import request from 'supertest';
 import { createApp } from '../app';
-import { setDb, createInMemoryDb, closeDb } from '../db';
-import { seedSlots } from '../slots';
+import { hasPostgres, usePostgresTestStore } from './helpers/postgres';
 
 const app = createApp();
 
-beforeEach(() => {
-  setDb(createInMemoryDb());
-  seedSlots();
-});
+describe.skipIf(!hasPostgres)('GET /api/slots', () => {
+  usePostgresTestStore();
 
-afterAll(() => {
-  closeDb();
-});
-
-describe('GET /api/slots', () => {
   it('returns all available slots', async () => {
     const res = await request(app).get('/api/slots');
     expect(res.status).toBe(200);
@@ -48,7 +40,9 @@ describe('GET /api/slots', () => {
   });
 });
 
-describe('POST /api/bookings', () => {
+describe.skipIf(!hasPostgres)('POST /api/bookings', () => {
+  usePostgresTestStore();
+
   it('creates a booking and returns 201', async () => {
     const res = await request(app).post('/api/bookings').send({
       slot_id: 'slot-001',
@@ -100,7 +94,9 @@ describe('POST /api/bookings', () => {
   });
 });
 
-describe('GET /api/bookings/:id', () => {
+describe.skipIf(!hasPostgres)('GET /api/bookings/:id', () => {
+  usePostgresTestStore();
+
   it('returns a booking by id', async () => {
     const createRes = await request(app).post('/api/bookings').send({
       slot_id: 'slot-001',
@@ -120,7 +116,9 @@ describe('GET /api/bookings/:id', () => {
   });
 });
 
-describe('DELETE /api/bookings/:id', () => {
+describe.skipIf(!hasPostgres)('DELETE /api/bookings/:id', () => {
+  usePostgresTestStore();
+
   it('cancels a booking', async () => {
     const createRes = await request(app).post('/api/bookings').send({
       slot_id: 'slot-001',
@@ -153,7 +151,9 @@ describe('DELETE /api/bookings/:id', () => {
   });
 });
 
-describe('GET /api/config + PUT /api/config', () => {
+describe.skipIf(!hasPostgres)('GET /api/config + PUT /api/config', () => {
+  usePostgresTestStore();
+
   it('returns default config', async () => {
     const res = await request(app).get('/api/config');
     expect(res.status).toBe(200);

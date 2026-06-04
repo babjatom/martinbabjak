@@ -1,6 +1,6 @@
 import { getPool, applyMigrations, closePool } from './client';
 import { PostgresStore } from './PostgresStore';
-import { setStore } from '../store';
+import { setStore } from '../store-registry';
 import { seedSlotsAsync } from '../slots';
 
 async function main(): Promise<void> {

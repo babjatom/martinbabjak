@@ -5,5 +5,5 @@ alwaysApply: false
 ---
 
 - `api/src/__tests__/concurrency.test.ts`: additions only; never remove, skip, or weaken tests (see CLAUDE.md → THE CONCURRENCY GATE).
-- Booking invariant: use `store.transaction` with `.immediate()` (`BEGIN IMMEDIATE`); never `.deferred()` or non-transactional paths.
-- Do not replace `better-sqlite3` with an async SQLite driver.
+- Booking invariant: Postgres transaction + partial unique index; concurrent race → 201 and 409.
+- Tests require `DATABASE_URL` (see `api/src/__tests__/helpers/postgres.ts`).

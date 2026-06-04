@@ -8,7 +8,7 @@ Read this before making any changes. These rules are non-negotiable constraints.
 |-------|------|
 | API runtime | Node.js 20, TypeScript 5, strict mode |
 | HTTP | Express 4 |
-| Database | SQLite via `better-sqlite3` (synchronous — do NOT swap for async driver) |
+| Database | Postgres (`pg`); SQLite removed |
 | Validation | Zod |
 | Tests | Vitest + supertest |
 | Frontend | Next.js 14, React 18, Tailwind CSS 3 |
@@ -17,15 +17,15 @@ Read this before making any changes. These rules are non-negotiable constraints.
 
 ```
 api/src/
-  store.ts             — Store interface + SqliteStore
+  store-registry.ts    — Store interface + getStore/setStore
+  store.ts             — Re-exports registry
   postgres/            — PostgresStore, migrations, pool client
-  db.ts                — SQLite init (local/tests)
-  bookings.ts          — Booking domain (async; SQLite + Postgres paths)
+  bookings.ts          — Booking domain (Postgres)
   slots.ts, config.ts  — Domain modules
   http/handlers.ts     — Shared HTTP handlers (Express + Next)
   routes.ts, app.ts    — Express (optional local dev)
   runtime/init-store.ts — Wire Store for Route Handlers
-  __tests__/           — SQLite tests + concurrency gate; Postgres tests separate
+  __tests__/           — Postgres tests (DATABASE_URL); concurrency gate
 
 web/src/
   app/api/             — Next Route Handlers (`runtime = 'nodejs'`)
@@ -38,15 +38,13 @@ web/src/
 
 **Exactly one active booking per slot at a time.**
 
-Enforced in `api/src/bookings.ts` via `bookSlot.immediate()`. The `immediate()` call
-uses `BEGIN IMMEDIATE`, acquiring the SQLite write lock at transaction start. Two
-concurrent requests for the same slot serialize here: the second sees the first's
-committed booking and throws `SlotAlreadyBookedError`.
+Enforced in `api/src/bookings.ts` via `PostgresStore.transactionAsync` and a partial
+unique index on active bookings per slot; concurrent inserts yield one success and
+`SlotAlreadyBookedError` (409). SQLite `BEGIN IMMEDIATE` path removed.
 
 Do NOT:
-- Change `.immediate()` to `.deferred()` or plain `bookSlot()`
 - Add code paths that bypass the transaction
-- Replace `better-sqlite3` with an async SQLite driver
+- Weaken `api/src/__tests__/concurrency.test.ts`
 
 ## THE CONCURRENCY GATE — Do Not Touch
 
@@ -93,7 +91,7 @@ Booking object: `{ id, slot_id, user_id, idempotency_key, status, created_at, ca
 ## Testing Rules
 
 - Write tests before implementing (TDD)
-- `setDb(createInMemoryDb())` in `beforeEach` — never share database state between tests
+- Postgres tests: `DATABASE_URL` + truncate between cases (`helpers/postgres.ts`)
 - New route → at minimum: happy path + validation error + not-found case
 - Test files live in `api/src/__tests__/`
 

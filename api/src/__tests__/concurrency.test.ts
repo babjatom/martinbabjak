@@ -1,8 +1,7 @@
-import { describe, it, expect, beforeEach, afterAll } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import request from 'supertest';
 import { createApp } from '../app';
-import { setDb, createInMemoryDb, closeDb } from '../db';
-import { seedSlots } from '../slots';
+import { hasPostgres, usePostgresTestStore } from './helpers/postgres';
 
 /**
  * THE CONCURRENCY GATE
@@ -10,31 +9,16 @@ import { seedSlots } from '../slots';
  * Fires two simultaneous POST /api/bookings requests for the same slot via
  * Promise.all and asserts exactly one 201 and one 409.
  *
- * Why Promise.all and not sequential: sequential calls would never overlap
- * in the SQLite transaction window. Promise.all submits both requests to
- * the event loop simultaneously, so both HTTP handlers begin before either
- * completes, exercising the BEGIN IMMEDIATE serialization point.
- *
- * Why better-sqlite3 (synchronous) and not an async driver: the synchronous
- * API makes the transaction boundary the only serialization point, giving
- * deterministic behavior. Async drivers can serialize at the thread-pool
- * level before reaching SQLite, obscuring where correctness comes from.
+ * Postgres: partial unique index on active bookings per slot; one insert wins,
+ * the other gets 23505 → SLOT_ALREADY_BOOKED.
  *
  * DO NOT remove or skip any test in this file. See CLAUDE.md.
  */
 
-const app = createApp();
+describe.skipIf(!hasPostgres)('Concurrency gate: slot double-booking prevention', () => {
+  const app = createApp();
+  usePostgresTestStore();
 
-beforeEach(() => {
-  setDb(createInMemoryDb());
-  seedSlots();
-});
-
-afterAll(() => {
-  closeDb();
-});
-
-describe('Concurrency gate: slot double-booking prevention', () => {
   it('allows exactly one booking when two requests race for the same slot', async () => {
     const [res1, res2] = await Promise.all([
       request(app).post('/api/bookings').send({
@@ -49,8 +33,6 @@ describe('Concurrency gate: slot double-booking prevention', () => {
       }),
     ]);
 
-    // Sort so the assertion is order-independent — Promise.all does not
-    // guarantee which request wins the race.
     const statuses = [res1.status, res2.status].sort();
     expect(statuses).toEqual([201, 409]);
 
@@ -61,7 +43,6 @@ describe('Concurrency gate: slot double-booking prevention', () => {
     const loser = res1.status === 409 ? res1 : res2;
     expect(loser.body.error).toBe('SLOT_ALREADY_BOOKED');
 
-    // Verify slot-001 is no longer in the available list
     const slotsRes = await request(app).get('/api/slots');
     const available = (slotsRes.body.slots as Array<{ id: string }>).map((s) => s.id);
     expect(available).not.toContain('slot-001');
@@ -81,7 +62,6 @@ describe('Concurrency gate: slot double-booking prevention', () => {
       }),
     ]);
 
-    // Locking is slot-scoped, not global — both must succeed
     expect(res1.status).toBe(201);
     expect(res2.status).toBe(201);
   });

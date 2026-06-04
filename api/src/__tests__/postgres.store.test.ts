@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { getPool, applyMigrations, closePool } from '../postgres/client';
 import { PostgresStore } from '../postgres/PostgresStore';
-import { setStore } from '../store';
+import { setStore } from '../store-registry';
 import { seedSlotsAsync } from '../slots';
 import { createBooking, cancelBooking, SlotAlreadyBookedError } from '../bookings';
 
