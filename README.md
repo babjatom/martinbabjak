@@ -36,13 +36,14 @@ Add or remove slots from the Slots tab.
 simultaneous `POST /api/bookings` requests for the same slot via `Promise.all` and asserts
 exactly one 201 and one 409. A second test proves locking is slot-scoped, not global.
 
-**Why `better-sqlite3` (synchronous):** the synchronous driver means SQLite's own
-`BEGIN IMMEDIATE` lock is the only serialization point — the test exercises the real
-correctness mechanism.
+**Why Postgres:** a partial unique index on active bookings per slot makes the database the
+source of truth; one concurrent insert wins (201), the other gets a unique violation mapped to
+409 (`SLOT_ALREADY_BOOKED`). Domain logic also uses `PostgresStore.transactionAsync` for
+read-check-then-insert within one connection.
 
-**Why `Promise.all` and not sequential:** sequential calls serialize at the event loop
-before the transaction begins. `Promise.all` submits both to the event loop simultaneously,
-racing at the transaction boundary.
+**Why `Promise.all` and not sequential:** sequential calls can finish one request before the
+other starts. `Promise.all` submits both at once so they race at the transaction / insert
+boundary — the gate the invariant must survive.
 
 ## Agentic Workflow
 

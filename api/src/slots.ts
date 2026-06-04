@@ -1,6 +1,5 @@
 import { randomUUID } from 'crypto';
 import { getStore } from './store-registry';
-import { isPostgresStore } from './postgres/PostgresStore';
 
 export interface Slot {
   id: string;
@@ -26,35 +25,19 @@ const SEED_SLOTS: Omit<Slot, 'is_active'>[] = [
 ];
 
 export async function seedSlotsAsync(): Promise<void> {
-  const store = getStore();
-  if (!isPostgresStore(store)) {
-    throw new Error('PostgresStore required');
-  }
-  await store.seedSlotsAsync(SEED_SLOTS);
+  await getStore().seedSlotsAsync(SEED_SLOTS);
 }
 
 export async function listAvailableSlots(): Promise<Slot[]> {
-  const store = getStore();
-  if (!isPostgresStore(store)) {
-    throw new Error('PostgresStore required');
-  }
-  return store.listAvailableSlotsAsync();
+  return getStore().listAvailableSlotsAsync();
 }
 
 export async function listAllSlots(): Promise<Slot[]> {
-  const store = getStore();
-  if (!isPostgresStore(store)) {
-    throw new Error('PostgresStore required');
-  }
-  return store.listAllSlotsAsync();
+  return getStore().listAllSlotsAsync();
 }
 
 export async function slotExistsAndActive(slotId: string): Promise<boolean> {
-  const store = getStore();
-  if (!isPostgresStore(store)) {
-    throw new Error('PostgresStore required');
-  }
-  return store.slotExistsAndActiveAsync(slotId);
+  return getStore().slotExistsAndActiveAsync(slotId);
 }
 
 export async function createSlot(params: {
@@ -71,19 +54,11 @@ export async function createSlot(params: {
     duration_m,
     is_active: 1,
   };
-  const store = getStore();
-  if (!isPostgresStore(store)) {
-    throw new Error('PostgresStore required');
-  }
-  await store.insertSlotAsync(slot);
+  await getStore().insertSlotAsync(slot);
   return slot;
 }
 
 export async function deactivateSlot(id: string): Promise<void> {
-  const store = getStore();
-  if (!isPostgresStore(store)) {
-    throw new Error('PostgresStore required');
-  }
-  const changes = await store.deactivateSlotAsync(id);
+  const changes = await getStore().deactivateSlotAsync(id);
   if (changes === 0) throw new SlotNotFoundError(id);
 }

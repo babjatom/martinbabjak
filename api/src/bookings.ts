@@ -1,7 +1,7 @@
 import { randomUUID } from 'crypto';
 import { getStore } from './store-registry';
+import type { PostgresStore } from './postgres/PostgresStore';
 import { SlotNotFoundError } from './slots';
-import { isPostgresStore, PostgresStore } from './postgres/PostgresStore';
 
 export { SlotNotFoundError };
 
@@ -41,11 +41,7 @@ export async function createBooking(params: {
   user_id: string;
   idempotency_key: string;
 }): Promise<{ booking: Booking; created: boolean }> {
-  const store = getStore();
-  if (!isPostgresStore(store)) {
-    throw new Error('PostgresStore required');
-  }
-  return createBookingPostgres(store, params);
+  return createBookingPostgres(getStore(), params);
 }
 
 async function createBookingPostgres(
@@ -85,9 +81,6 @@ async function createBookingPostgres(
 
 export async function getBooking(id: string): Promise<Booking> {
   const store = getStore();
-  if (!isPostgresStore(store)) {
-    throw new Error('PostgresStore required');
-  }
   const booking = await store.getBookingByIdAsync(id);
   if (!booking) throw new BookingNotFoundError(id);
   return booking;
@@ -95,9 +88,6 @@ export async function getBooking(id: string): Promise<Booking> {
 
 export async function cancelBooking(id: string): Promise<Booking> {
   const store = getStore();
-  if (!isPostgresStore(store)) {
-    throw new Error('PostgresStore required');
-  }
   return store.transactionAsync(async (): Promise<Booking> => {
     const booking = await store.getBookingByIdAsync(id);
     if (!booking) throw new BookingNotFoundError(id);

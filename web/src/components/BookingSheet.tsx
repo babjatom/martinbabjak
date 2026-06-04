@@ -93,19 +93,9 @@ export default function BookingSheet({
 
   /* Close on backdrop click (click outside the sheet panel) */
   const handleDialogClick = (e: React.MouseEvent<HTMLDialogElement>): void => {
-    const rect = dialogRef.current?.getBoundingClientRect();
-    if (!rect) return;
-    const inPanel =
-      e.clientX >= rect.left &&
-      e.clientX <= rect.right &&
-      e.clientY >= rect.top &&
-      e.clientY <= rect.bottom;
-    // The <dialog> fill = backdrop; the sheet panel is the direct child div.
-    // We detect a click directly on the <dialog> element (i.e. backdrop).
     if (e.target === dialogRef.current) {
       closeSheet();
     }
-    void inPanel; // suppress unused warning
   };
 
   /* Keyboard: Esc is handled natively by <dialog>; trap focus inside */

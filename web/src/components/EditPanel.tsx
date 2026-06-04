@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import type { PageConfig, Slot } from '@/types';
 
 interface Props {
@@ -21,6 +21,23 @@ interface NewSlotForm {
 
 const EMPTY_SLOT: NewSlotForm = { label: '', starts_at: '', duration_m: 30 };
 
+function formatSlotTime(iso: string): string {
+  return new Date(iso).toLocaleString('en-GB', {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone: 'UTC',
+  });
+}
+
+async function fetchAllSlots(): Promise<Slot[]> {
+  const res = await fetch('/api/slots/all');
+  if (!res.ok) return [];
+  return ((await res.json()) as { slots: Slot[] }).slots;
+}
+
 export default function EditPanel({
   isOpen,
   config,
@@ -34,6 +51,26 @@ export default function EditPanel({
   const [newSlot, setNewSlot] = useState<NewSlotForm>(EMPTY_SLOT);
   const [addingSlot, setAddingSlot] = useState(false);
   const [slotError, setSlotError] = useState<string | null>(null);
+  const [allSlots, setAllSlots] = useState<Slot[]>([]);
+  const [loadingSlots, setLoadingSlots] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const refreshAllSlots = useCallback(async (): Promise<void> => {
+    setLoadingSlots(true);
+    try {
+      const slots = await fetchAllSlots();
+      setAllSlots(slots);
+      onSlotsChange(slots);
+    } finally {
+      setLoadingSlots(false);
+    }
+  }, [onSlotsChange]);
+
+  useEffect(() => {
+    if (isOpen && tab === 'slots') {
+      void refreshAllSlots();
+    }
+  }, [isOpen, tab, refreshAllSlots]);
 
   const handleSaveConfig = async (): Promise<void> => {
     setSavingConfig(true);
@@ -68,11 +105,7 @@ export default function EditPanel({
       });
 
       if (res.ok) {
-        const allRes = await fetch('/api/slots/all');
-        if (allRes.ok) {
-          const data = (await allRes.json()) as { slots: Slot[] };
-          onSlotsChange(data.slots);
-        }
+        await refreshAllSlots();
         setNewSlot(EMPTY_SLOT);
       } else {
         const errBody = (await res.json().catch(() => null)) as {
@@ -89,6 +122,23 @@ export default function EditPanel({
       setSlotError('Network error.');
     } finally {
       setAddingSlot(false);
+    }
+  };
+
+  const handleDeleteSlot = async (id: string): Promise<void> => {
+    setDeletingId(id);
+    setSlotError(null);
+    try {
+      const res = await fetch(`/api/slots/${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        await refreshAllSlots();
+      } else {
+        setSlotError(`Failed to remove slot (${res.status}).`);
+      }
+    } catch {
+      setSlotError('Network error.');
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -179,7 +229,52 @@ export default function EditPanel({
 
           {tab === 'slots' && (
             <div className="space-y-5">
-              <form onSubmit={(e) => void handleAddSlot(e)} className="space-y-3">
+              <div>
+                <p className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-2">
+                  Existing slots
+                </p>
+                {loadingSlots && allSlots.length === 0 ? (
+                  <p className="text-sm text-gray-400">Loading…</p>
+                ) : allSlots.length === 0 ? (
+                  <p className="text-sm text-gray-400">No slots yet.</p>
+                ) : (
+                  <ul className="space-y-2">
+                    {allSlots.map((slot) => (
+                      <li
+                        key={slot.id}
+                        className={`flex items-start gap-2 rounded-lg border px-3 py-2 text-sm ${
+                          slot.is_active === 1
+                            ? 'border-gray-200 bg-white'
+                            : 'border-gray-100 bg-gray-50 opacity-70'
+                        }`}
+                      >
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-gray-900 truncate">{slot.label}</p>
+                          <p className="text-xs text-gray-500">{formatSlotTime(slot.starts_at)}</p>
+                          {slot.is_active === 0 && (
+                            <p className="text-xs text-gray-400 mt-0.5">Removed</p>
+                          )}
+                        </div>
+                        {slot.is_active === 1 && (
+                          <button
+                            type="button"
+                            onClick={() => void handleDeleteSlot(slot.id)}
+                            disabled={deletingId === slot.id}
+                            className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors shrink-0 disabled:opacity-50"
+                            aria-label={`Remove ${slot.label}`}
+                          >
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                          </button>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+
+              <form onSubmit={(e) => void handleAddSlot(e)} className="space-y-3 border-t pt-5">
                 <p className="text-xs font-medium text-gray-600 uppercase tracking-wide">Add slot</p>
                 <div>
                   <label className="block text-xs text-gray-500 mb-1">Label</label>
