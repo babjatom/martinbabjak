@@ -11,4 +11,4 @@ export {
   internalError,
   type ApiResponse,
 } from '../../../api/src/http/handlers';
-export { initApiStore } from '../../../api/src/runtime/init-store';
+export { initApiStore } from './init-api-store';

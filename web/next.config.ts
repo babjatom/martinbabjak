@@ -4,7 +4,7 @@ const nextConfig: NextConfig = {
   experimental: {
     externalDir: true,
   },
-  serverExternalPackages: ['better-sqlite3', 'pg'],
+  serverExternalPackages: ['pg'],
 };
 
 export default nextConfig;

@@ -1,12 +1,11 @@
-import { setDb, createInMemoryDb } from '../db';
 import { setStore } from '../store';
-import { seedSlots, seedSlotsAsync } from '../slots';
+import { seedSlotsAsync } from '../slots';
 import { getPool, applyMigrations } from '../postgres/client';
 import { PostgresStore } from '../postgres/PostgresStore';
 
 /**
  * Wire the active Store for Route Handlers or serverless invocations.
- * Uses Postgres when DATABASE_URL is set; otherwise in-memory SQLite.
+ * Uses Postgres when DATABASE_URL is set; otherwise in-memory SQLite (dynamic import).
  */
 export async function initApiStore(): Promise<void> {
   if (process.env['DATABASE_URL']) {
@@ -16,7 +15,6 @@ export async function initApiStore(): Promise<void> {
     await seedSlotsAsync();
     return;
   }
-  setStore(null);
-  setDb(createInMemoryDb());
-  seedSlots();
+  const { initApiStoreSqlite } = await import('./init-store-sqlite.js');
+  await initApiStoreSqlite();
 }
