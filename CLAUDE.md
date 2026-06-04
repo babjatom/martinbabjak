@@ -120,7 +120,7 @@ Workflow: `.github/workflows/agent.yml`. Trigger: `@claude` in title/body/commen
 | Label | Agent | Model | Task file |
 |-------|-------|-------|-----------|
 | `api` | yes | Sonnet (`claude-sonnet-4-6`) | `implement-feature.md` |
-| `web` | yes | Haiku (`claude-haiku-4-5`) | `implement-feature-web.md` |
+| `web` | yes | Sonnet (`claude-sonnet-4-6`) | `implement-feature-web.md` |
 | `infra` | no (human-only) | — | — |
 
 Use **one** of `api` or `web` per issue (not both). Issue templates: `api_feature`, `web_feature`, `infra_task`.

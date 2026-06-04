@@ -1,6 +1,6 @@
 # Agent Task: Web feature from issue
 
-For issues labeled **`web`** only (Haiku lane). Use **`api`** label and `implement-feature.md` for backend work.
+For issues labeled **`web`** only (Sonnet lane). Use **`api`** label and `implement-feature.md` for backend work.
 
 ## Inputs
 
@@ -9,6 +9,14 @@ For issues labeled **`web`** only (Haiku lane). Use **`api`** label and `impleme
 | Issue number | From the triggering event |
 | Issue title | The feature name |
 | Issue body | Requirements and acceptance criteria |
+
+## Efficiency
+
+- Implement **only** scope and files named in the issue (ignore parent epic sections unless the issue says to implement them).
+- Read listed files before editing; avoid broad repo exploration.
+- Run **`cd web && npm run typecheck && npm run lint` once** before commit when `web/` changed.
+- Run **`npm run build`** only when the issue acceptance checklist explicitly requires it.
+- Prefer **one commit**, then open the PR; do not re-run verification after a clean pass.
 
 ## Steps
 
@@ -22,7 +30,7 @@ For issues labeled **`web`** only (Haiku lane). Use **`api`** label and `impleme
 
 5. **Next + `externalDir`:** Dependencies for bundled `api` code live in `web/package.json`. Do not add `better-sqlite3` to `web`. Typecheck shims live under `web/types/` (e.g. `pg.d.ts`). Route handlers need `DATABASE_URL` at runtime.
 
-6. **Verify** `npm run typecheck` and `npm run build` in `web/` when you change web or shared handler imports.
+6. **Verify** `npm run typecheck` and `npm run lint` in `web/` when you change web or shared handler imports. Run `npm run build` only if the issue acceptance criteria require it.
 
 7. **Commit** with Conventional Commits; **PR title** must match.
 
@@ -30,7 +38,8 @@ For issues labeled **`web`** only (Haiku lane). Use **`api`** label and `impleme
 
 ## Success Criteria
 
-- [ ] `npm run typecheck` and `npm run build` pass in `web/` when web files changed
+- [ ] `npm run typecheck` and `npm run lint` pass in `web/` when web files changed
+- [ ] `npm run build` passes in `web/` when the issue acceptance criteria require build
 - [ ] No changes to `api/src/__tests__/concurrency.test.ts`
 - [ ] PR targets `main`; `Closes #N` when appropriate
 

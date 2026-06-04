@@ -95,8 +95,8 @@ jobs:
 
             if (hasWeb) {
               core.setOutput('run', 'true');
-              core.setOutput('model', 'claude-haiku-4-5');
-              core.setOutput('max_turns', '30');
+              core.setOutput('model', 'claude-sonnet-4-6');
+              core.setOutput('max_turns', '50');
               core.setOutput('task_file', 'implement-feature-web.md');
               core.setOutput(
                 'system_prompt',
@@ -134,6 +134,9 @@ jobs:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           assignee_trigger: "github-actions[bot]"
           trigger_phrase: "@claude"
+          display_report: true
+          settings: |
+            {"enableAllProjectMcpServers": false}
           prompt: |
             Repository: ${{ github.repository }}
             Issue #${{ github.event.issue.number }}: ${{ github.event.issue.title }}
@@ -156,7 +159,9 @@ jobs:
           claude_args: |
             --model ${{ needs.gate.outputs.model }}
             --max-turns ${{ needs.gate.outputs.max_turns }}
+            --max-budget-usd 3
             --system-prompt "${{ needs.gate.outputs.system_prompt }}"
+            --append-system-prompt "Efficiency: edit only files listed in the issue; do not use MCP unless the issue requires it; run cd web && npm run typecheck && npm run lint once before commit when web/ changed; run npm run build only if issue acceptance requires it; one commit then open PR; do not re-run verification after a clean pass."
             --permission-mode bypassPermissions
             --allowedTools "Bash,Edit,Read,Write,Glob,Grep"
             --allowedTools "Bash(npm run *),Bash(cd *),Bash(npx *),Bash(git *)"
