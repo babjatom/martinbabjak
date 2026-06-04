@@ -1,3 +1,10 @@
+export interface Therapist {
+  id: string;
+  name: string;
+  specialty: string;
+  avatarUrl: string;
+}
+
 export interface Slot {
   id: string;
   label: string;
