@@ -1,0 +1,7 @@
+---
+description: Project constitution
+alwaysApply: true
+---
+
+Follow [CLAUDE.md](../../CLAUDE.md) and [.github/agent-tasks/](../../.github/agent-tasks/) for agent work.
+CI is authoritative for merge blockers.

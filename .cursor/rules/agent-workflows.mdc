@@ -1,0 +1,8 @@
+---
+description: GitHub agent workflow edits
+globs: .github/workflows/agent*.yml
+alwaysApply: false
+---
+
+- Do not modify `.github/workflows/ci.yml`.
+- When editing agent prompts, reference CLAUDE.md for concurrency gate and Conventional Commits; avoid duplicating full rule text.
