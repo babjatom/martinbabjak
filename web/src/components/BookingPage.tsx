@@ -1,13 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState, useCallback } from 'react';
 import type { PageConfig, Slot, Booking } from '@/types';
 import BookingHero from './BookingHero';
-import SlotGrid from './SlotGrid';
-import BookingModal from './BookingModal';
 import EditPanel from './EditPanel';
 import StickyBookBar from './StickyBookBar';
 import TherapistCards from './TherapistCards';
+import BookingSheet, { type BookingSheetHandle } from './BookingSheet';
 
 interface Props {
   initialConfig: PageConfig;
@@ -18,12 +17,12 @@ export default function BookingPage({ initialConfig, initialSlots }: Props): Rea
   const [config, setConfig] = useState<PageConfig>(initialConfig);
   const [slots, setSlots] = useState<Slot[]>(initialSlots);
   const [isEditOpen, setIsEditOpen] = useState(false);
-  const [selectedSlot, setSelectedSlot] = useState<Slot | null>(null);
   const [completedBooking, setCompletedBooking] = useState<Booking | null>(null);
+
+  const sheetHandleRef = useRef<BookingSheetHandle | null>(null);
 
   const handleBookingComplete = (booking: Booking): void => {
     setCompletedBooking(booking);
-    setSelectedSlot(null);
     // Remove the booked slot from available list
     setSlots((prev) => prev.filter((s) => s.id !== booking.slot_id));
   };
@@ -32,11 +31,21 @@ export default function BookingPage({ initialConfig, initialSlots }: Props): Rea
     setSlots(updated.filter((s) => s.is_active === 1));
   };
 
-  const handleBookBarClick = (): void => {
-    if (slots.length > 0) {
-      setSelectedSlot(slots[0]);
+  const handleSlotsRefresh = useCallback(async (): Promise<void> => {
+    try {
+      const res = await fetch('/api/slots');
+      if (res.ok) {
+        const data = (await res.json()) as { slots: Slot[] };
+        setSlots(data.slots.filter((s) => s.is_active === 1));
+      }
+    } catch {
+      // silently ignore refresh errors
     }
-  };
+  }, []);
+
+  const handleOpenSheet = useCallback((): void => {
+    sheetHandleRef.current?.open();
+  }, []);
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -48,7 +57,7 @@ export default function BookingPage({ initialConfig, initialSlots }: Props): Rea
 
       <section className="w-full py-6">
         <h2 className="text-lg font-semibold text-gray-900 px-4 mb-3">Your therapist</h2>
-        <TherapistCards onOpenBooking={handleBookBarClick} />
+        <TherapistCards onOpenBooking={handleOpenSheet} />
       </section>
 
       <main className="flex-1 max-w-5xl mx-auto w-full px-4 py-12">
@@ -71,22 +80,21 @@ export default function BookingPage({ initialConfig, initialSlots }: Props): Rea
             </button>
           </div>
         ) : (
-          <SlotGrid
-            slots={slots}
-            onBook={setSelectedSlot}
-            isEditOpen={isEditOpen}
-            onSlotsChange={handleSlotsChange}
-          />
+          <p className="text-center text-gray-500 text-sm">
+            {slots.length === 0
+              ? 'No slots available right now.'
+              : `${slots.length} slot${slots.length === 1 ? '' : 's'} available — tap a therapist card or the bar below to book.`}
+          </p>
         )}
       </main>
 
-      {selectedSlot && (
-        <BookingModal
-          slot={selectedSlot}
-          onClose={() => setSelectedSlot(null)}
-          onSuccess={handleBookingComplete}
-        />
-      )}
+      {/* Sheet is always rendered but only opens when triggered — never visible on page load */}
+      <BookingSheet
+        slots={slots}
+        onBooked={handleBookingComplete}
+        onSlotsRefresh={() => void handleSlotsRefresh()}
+        handleRef={(h) => { sheetHandleRef.current = h; }}
+      />
 
       <EditPanel
         isOpen={isEditOpen}
@@ -96,7 +104,7 @@ export default function BookingPage({ initialConfig, initialSlots }: Props): Rea
         onClose={() => setIsEditOpen(false)}
       />
 
-      <StickyBookBar onBookClick={handleBookBarClick} />
+      <StickyBookBar onBookClick={handleOpenSheet} />
 
       <button
         onClick={() => setIsEditOpen((o) => !o)}
