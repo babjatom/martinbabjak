@@ -1,3 +1,99 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Sticky Book Bar */
+.sticky-book-bar {
+  position: sticky;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 30;
+  background: white;
+  padding: 1rem;
+  display: flex;
+  justify-content: center;
+}
+
+/* Graceful degradation: without scroll-state support, just use sticky with border/shadow */
+@supports not (animation: scroll-state(stuck)) {
+  .sticky-book-bar {
+    border-top: 1px solid #e5e7eb;
+    box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.05);
+  }
+}
+
+/* With scroll-state support, style changes when stuck */
+@supports (animation: scroll-state(stuck)) {
+  .sticky-book-bar {
+    animation: sticky-lift-on-stuck linear;
+    animation-timeline: view();
+  }
+
+  @keyframes sticky-lift-on-stuck {
+    entry 0% {
+      border-top: 1px solid transparent;
+      box-shadow: none;
+    }
+    entry 100%,
+    cover 0% {
+      border-top: 1px solid #e5e7eb;
+      box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.05);
+    }
+  }
+}
+
+.sticky-book-bar__button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.5rem;
+  background-color: #4f46e5;
+  color: white;
+  font-weight: 600;
+  font-size: 0.875rem;
+  border-radius: 0.5rem;
+  border: none;
+  cursor: pointer;
+  transition: background-color 150ms ease;
+}
+
+.sticky-book-bar__button:focus-visible {
+  outline: 2px solid #4f46e5;
+  outline-offset: 2px;
+}
+
+.sticky-book-bar__button:hover {
+  background-color: #4338ca;
+}
+
+.sticky-book-bar__button:active {
+  background-color: #3730a3;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sticky-book-bar__button {
+    transition: none;
+  }
+}
+
+.sticky-book-bar__icon {
+  width: 1.25rem;
+  height: 1.25rem;
+  flex-shrink: 0;
+}
+
+.sticky-book-bar__label {
+  white-space: nowrap;
+}
+
+/* Mobile: hide label on small screens, show icon only */
+@media (max-width: 430px) {
+  .sticky-book-bar__button {
+    padding: 0.75rem;
+  }
+
+  .sticky-book-bar__label {
+    display: none;
+  }
+}

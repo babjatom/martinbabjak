@@ -6,6 +6,7 @@ import BookingHero from './BookingHero';
 import SlotGrid from './SlotGrid';
 import BookingModal from './BookingModal';
 import EditPanel from './EditPanel';
+import StickyBookBar from './StickyBookBar';
 
 interface Props {
   initialConfig: PageConfig;
@@ -28,6 +29,12 @@ export default function BookingPage({ initialConfig, initialSlots }: Props): Rea
 
   const handleSlotsChange = (updated: Slot[]): void => {
     setSlots(updated.filter((s) => s.is_active === 1));
+  };
+
+  const handleBookBarClick = (): void => {
+    if (slots.length > 0) {
+      setSelectedSlot(slots[0]);
+    }
   };
 
   return (
@@ -82,6 +89,8 @@ export default function BookingPage({ initialConfig, initialSlots }: Props): Rea
         onSlotsChange={handleSlotsChange}
         onClose={() => setIsEditOpen(false)}
       />
+
+      <StickyBookBar onBookClick={handleBookBarClick} />
 
       <button
         onClick={() => setIsEditOpen((o) => !o)}
