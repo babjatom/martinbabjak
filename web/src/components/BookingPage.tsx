@@ -7,6 +7,7 @@ import SlotGrid from './SlotGrid';
 import BookingModal from './BookingModal';
 import EditPanel from './EditPanel';
 import StickyBookBar from './StickyBookBar';
+import TherapistCards from './TherapistCards';
 
 interface Props {
   initialConfig: PageConfig;
@@ -44,6 +45,11 @@ export default function BookingPage({ initialConfig, initialSlots }: Props): Rea
         onConfigChange={setConfig}
         isEditOpen={isEditOpen}
       />
+
+      <section className="w-full py-6">
+        <h2 className="text-lg font-semibold text-gray-900 px-4 mb-3">Your therapist</h2>
+        <TherapistCards onOpenBooking={handleBookBarClick} />
+      </section>
 
       <main className="flex-1 max-w-5xl mx-auto w-full px-4 py-12">
         {completedBooking ? (

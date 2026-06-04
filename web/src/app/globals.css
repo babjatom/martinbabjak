@@ -92,3 +92,20 @@
     display: none;
   }
 }
+
+/* ─── Therapist Cards ─────────────────────────────────────────── */
+
+/* Each card is a scroll-state container so the inner content can
+   detect when the card is snapped to the viewport center.
+   Degrades gracefully: browsers without scroll-state ignore the block. */
+.therapist-card {
+  container-type: scroll-state;
+  container-name: therapist-card;
+}
+
+@container therapist-card scroll-state(snapped: inline) {
+  .therapist-card__inner {
+    border-color: #4f46e5;
+    transform: scale(1.04);
+  }
+}
