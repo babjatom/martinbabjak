@@ -1,4 +1,5 @@
 import BookingPage from '@/components/BookingPage';
+import { getServerApiBase } from '@/lib/server-api-base';
 import type { PageConfig, Slot } from '@/types';
 
 export const dynamic = 'force-dynamic';
@@ -10,7 +11,7 @@ const DEFAULT_CONFIG: PageConfig = {
 };
 
 async function fetchPageData(): Promise<{ config: PageConfig; slots: Slot[] }> {
-  const API_URL = process.env['API_URL'] ?? 'http://localhost:3001';
+  const API_URL = getServerApiBase();
   try {
     const [configRes, slotsRes] = await Promise.all([
       fetch(`${API_URL}/api/config`, { cache: 'no-store' }),

@@ -31,6 +31,8 @@ cd api && npm run test:postgres
 
 ## Next.js API routes
 
-With `DATABASE_URL` set, Route Handlers use `PostgresStore`. Without it, handlers use in-memory SQLite for build/typecheck only.
+With `DATABASE_URL` set on the **Vercel project** (Production + Preview), Route Handlers use `PostgresStore`. Schema DDL ships in `api/src/postgres/migrations-sql.ts` (not read from disk at runtime).
+
+Optional: set `API_URL` to your canonical site URL if server-side fetches must hit a custom domain instead of `VERCEL_URL`.
 
 Production and local default: same-origin `/api` via Next.js Route Handlers. Optional: run Express on port 3001 for API-only debugging (`cd api && npm run dev`).

@@ -4,16 +4,20 @@ import { initApiStore, internalError, type ApiResponse } from '@/lib/booking-api
 let storeReady = false;
 
 async function ensureStore(): Promise<void> {
-  if (!storeReady) {
-    await initApiStore();
-    storeReady = true;
+  if (storeReady) {
+    return;
   }
+  await initApiStore();
+  storeReady = true;
 }
 
-export async function jsonFromHandler(handler: Promise<ApiResponse>): Promise<NextResponse> {
+/** Run handler only after the store is ready (do not pass an already-started Promise). */
+export async function jsonFromHandler(
+  runHandler: () => Promise<ApiResponse>
+): Promise<NextResponse> {
   try {
     await ensureStore();
-    const { status, body } = await handler;
+    const { status, body } = await runHandler();
     return NextResponse.json(body, { status });
   } catch (err: unknown) {
     console.error(err);

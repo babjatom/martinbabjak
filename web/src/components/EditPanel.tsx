@@ -75,7 +75,15 @@ export default function EditPanel({
         }
         setNewSlot(EMPTY_SLOT);
       } else {
-        setSlotError('Failed to add slot. Check the date format.');
+        const errBody = (await res.json().catch(() => null)) as {
+          error?: string;
+          message?: string;
+          details?: unknown;
+        } | null;
+        const detail =
+          errBody?.message ??
+          (errBody?.error === 'VALIDATION_ERROR' ? 'Invalid date or fields.' : null);
+        setSlotError(detail ?? `Failed to add slot (${res.status}).`);
       }
     } catch {
       setSlotError('Network error.');

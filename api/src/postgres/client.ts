@@ -1,6 +1,5 @@
 import { Pool } from 'pg';
-import { readFileSync } from 'fs';
-import path from 'path';
+import { MIGRATIONS_SQL } from './migrations-sql';
 
 let _pool: Pool | null = null;
 
@@ -27,8 +26,7 @@ export function setPool(pool: Pool | null): void {
 }
 
 export async function applyMigrations(pool: Pool): Promise<void> {
-  const sql = readFileSync(path.join(__dirname, 'migrations.sql'), 'utf8');
-  await pool.query(sql);
+  await pool.query(MIGRATIONS_SQL);
   const insert = `
     INSERT INTO page_config (key, value) VALUES ($1, $2)
     ON CONFLICT (key) DO NOTHING

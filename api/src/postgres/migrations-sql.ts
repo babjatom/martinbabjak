@@ -1,4 +1,8 @@
--- Canonical DDL is also in migrations-sql.ts (bundled for Vercel serverless).
+/**
+ * Schema DDL bundled into Next.js serverless output (no runtime readFileSync).
+ * Keep in sync with migrations.sql.
+ */
+export const MIGRATIONS_SQL = `
 CREATE TABLE IF NOT EXISTS page_config (
   key   TEXT PRIMARY KEY,
   value TEXT NOT NULL
@@ -27,3 +31,4 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_bookings_active_slot
 
 CREATE INDEX IF NOT EXISTS idx_bookings_idempotency
   ON bookings (idempotency_key);
+`;

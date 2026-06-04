@@ -4,10 +4,10 @@ import { jsonFromHandler } from '@/lib/api-route';
 export const runtime = 'nodejs';
 
 export async function GET(): Promise<Response> {
-  return jsonFromHandler(handleGetSlots());
+  return jsonFromHandler(() => handleGetSlots());
 }
 
 export async function POST(request: Request): Promise<Response> {
   const body: unknown = await request.json();
-  return jsonFromHandler(handlePostSlots(body));
+  return jsonFromHandler(() => handlePostSlots(body));
 }

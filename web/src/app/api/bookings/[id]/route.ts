@@ -8,7 +8,7 @@ export async function GET(
   context: { params: Promise<{ id: string }> }
 ): Promise<Response> {
   const { id } = await context.params;
-  return jsonFromHandler(handleGetBooking(id));
+  return jsonFromHandler(() => handleGetBooking(id));
 }
 
 export async function DELETE(
@@ -16,5 +16,5 @@ export async function DELETE(
   context: { params: Promise<{ id: string }> }
 ): Promise<Response> {
   const { id } = await context.params;
-  return jsonFromHandler(handleDeleteBooking(id));
+  return jsonFromHandler(() => handleDeleteBooking(id));
 }

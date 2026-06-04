@@ -8,5 +8,5 @@ export async function DELETE(
   context: { params: Promise<{ id: string }> }
 ): Promise<Response> {
   const { id } = await context.params;
-  return jsonFromHandler(handleDeleteSlot(id));
+  return jsonFromHandler(() => handleDeleteSlot(id));
 }

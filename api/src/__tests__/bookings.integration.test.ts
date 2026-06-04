@@ -40,6 +40,25 @@ describe.skipIf(!hasPostgres)('GET /api/slots', () => {
   });
 });
 
+describe.skipIf(!hasPostgres)('POST /api/slots', () => {
+  usePostgresTestStore();
+
+  it('creates a slot with ISO datetime and duration', async () => {
+    const res = await request(app).post('/api/slots').send({
+      label: 'fri',
+      starts_at: '2026-06-13T09:59:00.000Z',
+      duration_m: 45,
+    });
+    expect(res.status).toBe(201);
+    expect(res.body.slot).toMatchObject({
+      label: 'fri',
+      starts_at: '2026-06-13T09:59:00.000Z',
+      duration_m: 45,
+      is_active: 1,
+    });
+  });
+});
+
 describe.skipIf(!hasPostgres)('POST /api/bookings', () => {
   usePostgresTestStore();
 
