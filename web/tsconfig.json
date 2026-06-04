@@ -21,10 +21,10 @@
         "name": "next"
       }
     ],
+    "baseUrl": ".",
     "paths": {
-      "@/*": [
-        "./src/*"
-      ]
+      "@/*": ["./src/*"],
+      "zod": ["./node_modules/zod"]
     },
     "target": "ES2017"
   },
