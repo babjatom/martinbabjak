@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import request from 'supertest';
 import { createApp } from '../app';
+import { getPool } from '../postgres/client';
 import { hasPostgres, usePostgresTestStore } from './helpers/postgres';
 
 const app = createApp();
@@ -110,6 +111,76 @@ describe.skipIf(!hasPostgres)('POST /api/bookings', () => {
     const res = await request(app).post('/api/bookings').send({ slot_id: 'slot-001' });
     expect(res.status).toBe(400);
     expect(res.body.error).toBe('VALIDATION_ERROR');
+  });
+});
+
+describe.skipIf(!hasPostgres)('GET /api/bookings', () => {
+  usePostgresTestStore();
+
+  it('returns an empty bookings array when there are no active bookings', async () => {
+    const res = await request(app).get('/api/bookings');
+    expect(res.status).toBe(200);
+    expect(res.body.bookings).toEqual([]);
+  });
+
+  it('returns only active bookings ordered by created_at descending', async () => {
+    const firstRes = await request(app).post('/api/bookings').send({
+      slot_id: 'slot-001',
+      user_id: 'user-1',
+      idempotency_key: 'idem-1',
+    });
+    const cancelledRes = await request(app).post('/api/bookings').send({
+      slot_id: 'slot-002',
+      user_id: 'user-2',
+      idempotency_key: 'idem-2',
+    });
+    const newestRes = await request(app).post('/api/bookings').send({
+      slot_id: 'slot-003',
+      user_id: 'user-3',
+      idempotency_key: 'idem-3',
+    });
+
+    const firstId = (firstRes.body.booking as { id: string }).id;
+    const cancelledId = (cancelledRes.body.booking as { id: string }).id;
+    const newestId = (newestRes.body.booking as { id: string }).id;
+
+    await getPool().query('UPDATE bookings SET created_at = $1 WHERE id = $2', [
+      '2026-06-05T08:00:00.000Z',
+      firstId,
+    ]);
+    await getPool().query('UPDATE bookings SET created_at = $1 WHERE id = $2', [
+      '2026-06-05T08:01:00.000Z',
+      cancelledId,
+    ]);
+    await getPool().query('UPDATE bookings SET created_at = $1 WHERE id = $2', [
+      '2026-06-05T08:02:00.000Z',
+      newestId,
+    ]);
+
+    await request(app).delete(`/api/bookings/${cancelledId}`);
+
+    const res = await request(app).get('/api/bookings');
+    expect(res.status).toBe(200);
+    expect(res.body.bookings).toEqual([
+      {
+        id: newestId,
+        slot_id: 'slot-003',
+        user_id: 'user-3',
+        idempotency_key: 'idem-3',
+        status: 'active',
+        created_at: '2026-06-05T08:02:00.000Z',
+        cancelled_at: null,
+      },
+      {
+        id: firstId,
+        slot_id: 'slot-001',
+        user_id: 'user-1',
+        idempotency_key: 'idem-1',
+        status: 'active',
+        created_at: '2026-06-05T08:00:00.000Z',
+        cancelled_at: null,
+      },
+    ]);
   });
 });
 

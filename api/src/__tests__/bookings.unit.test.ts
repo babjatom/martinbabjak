@@ -2,12 +2,14 @@ import { describe, it, expect } from 'vitest';
 import {
   createBooking,
   getBooking,
+  listActiveBookings,
   cancelBooking,
   SlotAlreadyBookedError,
   SlotNotFoundError,
   BookingNotFoundError,
   BookingAlreadyCancelledError,
 } from '../bookings';
+import { getPool } from '../postgres/client';
 import { hasPostgres, usePostgresTestStore } from './helpers/postgres';
 
 describe.skipIf(!hasPostgres)('bookings (unit, Postgres)', () => {
@@ -92,6 +94,44 @@ describe.skipIf(!hasPostgres)('bookings (unit, Postgres)', () => {
 
     it('throws BookingNotFoundError for unknown id', async () => {
       await expect(getBooking('nonexistent')).rejects.toThrow(BookingNotFoundError);
+    });
+  });
+
+  describe('listActiveBookings', () => {
+    it('returns active bookings ordered by created_at descending', async () => {
+      const first = await createBooking({
+        slot_id: 'slot-001',
+        user_id: 'user-1',
+        idempotency_key: 'idem-1',
+      });
+      const cancelled = await createBooking({
+        slot_id: 'slot-002',
+        user_id: 'user-2',
+        idempotency_key: 'idem-2',
+      });
+      const newest = await createBooking({
+        slot_id: 'slot-003',
+        user_id: 'user-3',
+        idempotency_key: 'idem-3',
+      });
+
+      await getPool().query('UPDATE bookings SET created_at = $1 WHERE id = $2', [
+        '2026-06-05T08:00:00.000Z',
+        first.booking.id,
+      ]);
+      await getPool().query('UPDATE bookings SET created_at = $1 WHERE id = $2', [
+        '2026-06-05T08:01:00.000Z',
+        cancelled.booking.id,
+      ]);
+      await getPool().query('UPDATE bookings SET created_at = $1 WHERE id = $2', [
+        '2026-06-05T08:02:00.000Z',
+        newest.booking.id,
+      ]);
+
+      await cancelBooking(cancelled.booking.id);
+
+      const bookings = await listActiveBookings();
+      expect(bookings.map((booking) => booking.id)).toEqual([newest.booking.id, first.booking.id]);
     });
   });
 

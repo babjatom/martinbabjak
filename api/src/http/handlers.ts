@@ -2,6 +2,7 @@ import { z } from 'zod';
 import {
   createBooking,
   getBooking,
+  listActiveBookings,
   cancelBooking,
   SlotAlreadyBookedError,
   SlotNotFoundError,
@@ -107,6 +108,10 @@ export async function handlePostBookings(body: unknown): Promise<ApiResponse> {
     }
     throw err;
   }
+}
+
+export async function handleGetBookings(): Promise<ApiResponse> {
+  return { status: 200, body: { bookings: await listActiveBookings() } };
 }
 
 export async function handleGetBooking(id: string): Promise<ApiResponse> {

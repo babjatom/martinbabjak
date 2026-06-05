@@ -7,6 +7,7 @@ import {
   handlePostSlots,
   handleDeleteSlot,
   handlePostBookings,
+  handleGetBookings,
   handleGetBooking,
   handleDeleteBooking,
   internalError,
@@ -45,6 +46,10 @@ router.delete('/slots/:id', (req: Request, res: Response): void => {
 
 router.post('/bookings', (req: Request, res: Response): void => {
   void send(res, handlePostBookings(req.body));
+});
+
+router.get('/bookings', (_req: Request, res: Response): void => {
+  void send(res, handleGetBookings());
 });
 
 router.get('/bookings/:id', (req: Request, res: Response): void => {
