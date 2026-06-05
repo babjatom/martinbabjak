@@ -11,7 +11,7 @@ Read this before making any changes. These rules are non-negotiable constraints.
 | Database | Postgres (`pg`); SQLite removed |
 | Validation | Zod |
 | Tests | Vitest + supertest |
-| Frontend | Next.js 14, React 18, Tailwind CSS 3 |
+| Frontend | Next.js 16, React 18, Tailwind CSS 3 |
 
 ## File Map
 
