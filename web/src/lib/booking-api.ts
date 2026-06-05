@@ -6,6 +6,7 @@ export {
   handlePostSlots,
   handleDeleteSlot,
   handlePostBookings,
+  handleGetBookings,
   handleGetBooking,
   handleDeleteBooking,
   internalError,

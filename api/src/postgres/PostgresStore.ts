@@ -167,6 +167,13 @@ export class PostgresStore {
     return res.rows[0];
   }
 
+  async listActiveBookingsAsync(): Promise<Booking[]> {
+    const res = await this.client().query(
+      "SELECT * FROM bookings WHERE status = 'active' ORDER BY created_at DESC"
+    );
+    return res.rows.map(rowToBooking);
+  }
+
   async insertBookingAsync(booking: Booking): Promise<void> {
     try {
       await this.client().query(

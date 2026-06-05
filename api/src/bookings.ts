@@ -86,6 +86,10 @@ export async function getBooking(id: string): Promise<Booking> {
   return booking;
 }
 
+export async function listActiveBookings(): Promise<Booking[]> {
+  return getStore().listActiveBookingsAsync();
+}
+
 export async function cancelBooking(id: string): Promise<Booking> {
   const store = getStore();
   return store.transactionAsync(async (): Promise<Booking> => {
