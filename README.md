@@ -73,6 +73,20 @@ contribute, not enough to change branch protection.
 | `web-typecheck` | Next.js TypeScript strict mode |
 | `web-build` | `next build` succeeds |
 
+## Admin sign-in (`/bookings`)
+
+The public booking page stays on `/`. The owner admin UI at `/bookings` and admin-only API methods require a Google account whose email is listed in `ADMIN_EMAILS`.
+
+Copy [`web/.env.example`](web/.env.example) to `web/.env.local` and set:
+
+| Variable | Purpose |
+|----------|---------|
+| `AUTH_SECRET` | Session encryption (`openssl rand -base64 32`) |
+| `AUTH_GOOGLE_ID` / `AUTH_GOOGLE_SECRET` | Google OAuth web client |
+| `ADMIN_EMAILS` | Comma-separated allowlist (e.g. `you@gmail.com`) |
+
+OAuth redirect URI: `http://localhost:3000/api/auth/callback/google` (and the same path on your Vercel host). Set the same variables in the Vercel project settings for production.
+
 ## Running locally
 
 ```bash

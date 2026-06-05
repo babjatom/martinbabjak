@@ -1,4 +1,5 @@
 import EditPanel from '@/components/EditPanel';
+import { auth } from '@/auth';
 import { getServerApiBase } from '@/lib/server-api-base';
 import type { PageConfig } from '@/types';
 
@@ -22,6 +23,8 @@ async function fetchPageConfig(): Promise<PageConfig> {
 }
 
 export default async function BookingsPage(): Promise<React.ReactElement> {
+  const session = await auth();
+  const email = session?.user?.email ?? '';
   const config = await fetchPageConfig();
-  return <EditPanel initialConfig={config} />;
+  return <EditPanel initialConfig={config} adminEmail={email} />;
 }

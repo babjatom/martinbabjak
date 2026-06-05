@@ -2,10 +2,12 @@
 
 import Link from 'next/link';
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import AdminSessionBar from '@/components/AdminSessionBar';
 import type { Booking, PageConfig, Slot } from '@/types';
 
 interface Props {
   initialConfig: PageConfig;
+  adminEmail: string;
 }
 
 type Tab = 'page' | 'slots';
@@ -62,7 +64,7 @@ async function readApiError(res: Response, fallback: string): Promise<string> {
   return body?.message ?? fallback;
 }
 
-export default function EditPanel({ initialConfig }: Props): React.ReactElement {
+export default function EditPanel({ initialConfig, adminEmail }: Props): React.ReactElement {
   const [tab, setTab] = useState<Tab>('page');
   const [config, setConfig] = useState<PageConfig>(initialConfig);
   const [draft, setDraft] = useState<PageConfig>(initialConfig);
@@ -221,9 +223,12 @@ export default function EditPanel({ initialConfig }: Props): React.ReactElement 
               Manage active bookings, page content, and appointment slots.
             </p>
           </div>
-          <Link href="/" className="text-sm font-medium text-indigo-600 hover:text-indigo-700">
-            View booking page
-          </Link>
+          <div className="flex flex-col items-start gap-2 sm:items-end">
+            <AdminSessionBar email={adminEmail} />
+            <Link href="/" className="text-sm font-medium text-indigo-600 hover:text-indigo-700">
+              View booking page
+            </Link>
+          </div>
         </header>
 
         <section className="rounded-2xl border border-gray-200 bg-white shadow-sm">
