@@ -17,6 +17,7 @@ jobs:
       max_budget_usd: ${{ steps.eval.outputs.max_budget_usd }}
       task_file: ${{ steps.eval.outputs.task_file }}
       system_prompt: ${{ steps.eval.outputs.system_prompt }}
+      cursor_model: ${{ steps.eval.outputs.cursor_model }}
     permissions:
       issues: write
     steps:
@@ -134,6 +135,7 @@ jobs:
             if (hasApi) {
               core.setOutput('run', 'true');
               core.setOutput('model', 'claude-sonnet-4-6');
+              core.setOutput('cursor_model', 'composer-2.5');
               core.setOutput('max_turns', '20');
               core.setOutput('max_budget_usd', '3');
               core.setOutput('task_file', 'implement-feature.md');
@@ -147,6 +149,7 @@ jobs:
             if (hasWeb) {
               core.setOutput('run', 'true');
               core.setOutput('model', 'claude-sonnet-4-6');
+              core.setOutput('cursor_model', 'composer-2.5');
               core.setOutput('max_turns', '65');
               core.setOutput('max_budget_usd', '4');
               core.setOutput('task_file', 'implement-feature-web.md');
@@ -240,6 +243,7 @@ jobs:
           CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
           AGENT_TASK_FILE: ${{ needs.gate.outputs.task_file }}
           AGENT_SYSTEM_PROMPT: ${{ needs.gate.outputs.system_prompt }}
+          CURSOR_AGENT_MODEL: ${{ needs.gate.outputs.cursor_model }}
         with:
           script: |
             const issueNumber = context.payload.issue.number;
@@ -322,10 +326,12 @@ jobs:
               'Do not modify `.github/workflows/ci.yml` or weaken `api/src/__tests__/concurrency.test.ts`.',
             ].join('\n');
 
+            const modelId = process.env.CURSOR_AGENT_MODEL ?? 'composer-2.5';
             const requestBody = {
               prompt: { text: promptText },
               source: { repository: repositoryUrl, ref: 'main' },
               target: { autoCreatePr: true, branchName },
+              model: { id: modelId },
             };
 
             const auth = Buffer.from(
@@ -351,8 +357,19 @@ jobs:
             }
 
             if (!response.ok) {
+              const errorSnippet =
+                responseText.length > 500
+                  ? `${responseText.slice(0, 500)}…`
+                  : responseText;
               await comment(
-                `Failed to start Cursor cloud agent (HTTP ${response.status}). Check that Cursor is connected to GitHub for this repo and that \`CURSOR_API_KEY\` is valid.`
+                [
+                  `Failed to start Cursor cloud agent (HTTP ${response.status}). Check that Cursor is connected to GitHub for this repo and that \`CURSOR_API_KEY\` is valid.`,
+                  '',
+                  'API response:',
+                  '```',
+                  errorSnippet || '(empty body)',
+                  '```',
+                ].join('\n')
               );
               core.setFailed(`Cursor API error: ${responseText}`);
               return;
@@ -378,6 +395,7 @@ jobs:
                 '',
                 `- Agent id: \`${agentId}\``,
                 agentStatus ? `- Status: \`${agentStatus}\`` : '',
+                `- Model: \`${modelId}\``,
                 `- Branch: \`${branchName}\``,
                 `- ${urlLine}`,
                 '',
