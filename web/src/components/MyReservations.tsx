@@ -27,11 +27,6 @@ export function appendBookingId(id: string): void {
   }
 }
 
-function removeBookingId(id: string): void {
-  const ids = loadIds().filter((v) => v !== id);
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(ids));
-}
-
 export default function MyReservations(): React.ReactElement {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
@@ -68,18 +63,6 @@ export default function MyReservations(): React.ReactElement {
     void fetchBookings();
   }, [fetchBookings]);
 
-  const handleCancel = async (id: string): Promise<void> => {
-    try {
-      const res = await fetch(`/api/bookings/${id}`, { method: 'DELETE' });
-      if (res.ok) {
-        removeBookingId(id);
-        setBookings((prev) => prev.filter((b) => b.id !== id));
-      }
-    } catch {
-      // silently ignore cancel errors
-    }
-  };
-
   if (loading) return <></>;
 
   if (bookings.length === 0) return <></>;
@@ -108,22 +91,13 @@ export default function MyReservations(): React.ReactElement {
               </span>
               <span className="text-xs text-gray-400 font-mono">{b.id}</span>
             </div>
-            <div className="flex items-center gap-3">
-              <a
-                href="#clinic-map"
-                className="text-xs text-indigo-600 hover:text-indigo-700 font-medium"
-                aria-label="View clinic location"
-              >
-                View location ↓
-              </a>
-              <button
-                onClick={() => void handleCancel(b.id)}
-                className="text-xs text-red-500 hover:text-red-600 font-medium"
-                aria-label={`Cancel booking ${b.id}`}
-              >
-                Cancel
-              </button>
-            </div>
+            <a
+              href="#clinic-map"
+              className="text-xs text-indigo-600 hover:text-indigo-700 font-medium"
+              aria-label="View clinic location"
+            >
+              View location ↓
+            </a>
           </li>
         ))}
       </ul>
