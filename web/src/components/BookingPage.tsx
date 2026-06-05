@@ -5,7 +5,6 @@ import type { PageConfig, Slot, Booking } from '@/types';
 import BookingHero from './BookingHero';
 import EditPanel from './EditPanel';
 import StickyBookBar from './StickyBookBar';
-import TherapistCards from './TherapistCards';
 import BookingSheet, { type BookingSheetHandle } from './BookingSheet';
 import MyReservations, { appendBookingId } from './MyReservations';
 import ClinicMap from './ClinicMap';
@@ -15,9 +14,21 @@ interface Props {
   initialSlots: Slot[];
 }
 
+function formatDow(isoStr: string): string {
+  return new Date(isoStr).toLocaleDateString('en-US', { weekday: 'short' });
+}
+
+function formatDate(isoStr: string): string {
+  return new Date(isoStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+function formatTime(isoStr: string): string {
+  return new Date(isoStr).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+}
+
 export default function BookingPage({ initialConfig, initialSlots }: Props): React.ReactElement {
   const [config, setConfig] = useState<PageConfig>(initialConfig);
-  const [slots, setSlots] = useState<Slot[]>(initialSlots);
+  const [slots, setSlots] = useState<Slot[]>(initialSlots.filter((s) => s.is_active === 1));
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [completedBooking, setCompletedBooking] = useState<Booking | null>(null);
 
@@ -47,8 +58,15 @@ export default function BookingPage({ initialConfig, initialSlots }: Props): Rea
     }
   }, []);
 
-  const handleOpenSheet = useCallback((): void => {
-    sheetHandleRef.current?.open();
+  const handleOpenSheet = useCallback(
+    (slot: Slot): void => {
+      sheetHandleRef.current?.open(slot);
+    },
+    [],
+  );
+
+  const handleScrollToSlots = useCallback((): void => {
+    document.getElementById('available-slots')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }, []);
 
   return (
@@ -59,37 +77,66 @@ export default function BookingPage({ initialConfig, initialSlots }: Props): Rea
         isEditOpen={isEditOpen}
       />
 
-      <section className="w-full py-6">
-        <h2 className="text-lg font-semibold text-gray-900 px-4 mb-3">Your therapist</h2>
-        <TherapistCards onOpenBooking={handleOpenSheet} />
-      </section>
 
-      <main className="flex-1 max-w-5xl mx-auto w-full px-4 py-12">
-        {completedBooking ? (
-          <div className="text-center py-16">
-            <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-green-100 mb-4">
-              <svg className="w-8 h-8 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-              </svg>
+      <main className="flex-1 max-w-5xl mx-auto w-full px-4 py-10">
+        <div className="py-6 space-y-6">
+          {completedBooking ? (
+            <div className="text-center">
+              <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-green-100 mb-4">
+                <svg className="w-8 h-8 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+              <h2 className="text-2xl font-semibold text-gray-900 mb-2">Booking confirmed!</h2>
+              <p className="text-gray-500 mb-4">
+                Your booking ID is{' '}
+                <span className="font-mono text-sm bg-gray-100 px-2 py-1 rounded">{completedBooking.id}</span>
+              </p>
+              <button
+                onClick={() => setCompletedBooking(null)}
+                className="text-indigo-600 hover:text-indigo-700 font-medium"
+              >
+                Book another slot
+              </button>
             </div>
-            <h2 className="text-2xl font-semibold text-gray-900 mb-2">Booking confirmed!</h2>
-            <p className="text-gray-500 mb-6">
-              Your booking ID is <span className="font-mono text-sm bg-gray-100 px-2 py-1 rounded">{completedBooking.id}</span>
+          ) : (
+            <p className="text-center text-gray-500 text-sm">
+              {slots.length === 0
+                ? 'No slots available right now.'
+                : `${slots.length} slot${slots.length === 1 ? '' : 's'} available — tap a slot to book.`}
             </p>
-            <button
-              onClick={() => setCompletedBooking(null)}
-              className="text-indigo-600 hover:text-indigo-700 font-medium"
-            >
-              Book another slot
-            </button>
-          </div>
-        ) : (
-          <p className="text-center text-gray-500 text-sm">
-            {slots.length === 0
-              ? 'No slots available right now.'
-              : `${slots.length} slot${slots.length === 1 ? '' : 's'} available — tap a therapist card or the bar below to book.`}
-          </p>
-        )}
+          )}
+
+          <section id="available-slots" aria-label="Available slots" className="pt-2">
+            <h2 className="text-lg font-semibold text-gray-900 px-1 mb-3">Available slots</h2>
+            {slots.length === 0 ? (
+              <p className="text-gray-500 text-sm px-1">Check back later.</p>
+            ) : (
+              <div className="slot-strip" role="list" aria-label="Swipeable slot list">
+                {slots.map((slot) => {
+                  const dow = formatDow(slot.starts_at);
+                  const time = formatTime(slot.starts_at);
+                  const date = formatDate(slot.starts_at);
+                  return (
+                    <button
+                      key={slot.id}
+                      type="button"
+                      role="listitem"
+                      className="slot-chip"
+                      onClick={() => handleOpenSheet(slot)}
+                      aria-label={`Book ${dow} ${date} at ${time}`}
+                    >
+                      <span className="slot-chip__dow">{dow}</span>
+                      <span className="slot-chip__time">{time}</span>
+                      <span className="slot-chip__dur">{slot.duration_m}m</span>
+                      <span className="slot-chip__date">{date}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+        </div>
       </main>
 
       <MyReservations />
@@ -112,7 +159,7 @@ export default function BookingPage({ initialConfig, initialSlots }: Props): Rea
         onClose={() => setIsEditOpen(false)}
       />
 
-      <StickyBookBar onBookClick={handleOpenSheet} />
+      <StickyBookBar onBookClick={handleScrollToSlots} />
 
       <button
         onClick={() => setIsEditOpen((o) => !o)}

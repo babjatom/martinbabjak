@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useRef, useState, useCallback } from 'react';
-import type { Slot, Booking } from '@/types';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import type { Booking, Slot } from '@/types';
 
 /* ─── helpers ──────────────────────────────────────────────────── */
 
@@ -19,19 +19,10 @@ function formatTime(isoStr: string): string {
   return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
 }
 
-/** Group slots by calendar date (YYYY-MM-DD key). */
-function groupByDate(slots: Slot[]): Map<string, Slot[]> {
-  const map = new Map<string, Slot[]>();
-  for (const slot of slots) {
-    const key = slot.starts_at.slice(0, 10);
-    const arr = map.get(key) ?? [];
-    arr.push(slot);
-    map.set(key, arr);
-  }
-  return map;
-}
+/* ─── booking sheet ────────────────────────────────────────────── */
 
-/* ─── public API ────────────────────────────────────────────────── */
+const DIRECTIONS_ADDRESS = 'Lastomírska 6968/7A, 071 01 Michalovce, Slovakia';
+const GOOGLE_MAPS_URL = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(DIRECTIONS_ADDRESS)}`;
 
 export interface BookingSheetHandle {
   open: (slot?: Slot) => void;
@@ -46,44 +37,37 @@ export interface BookingSheetProps {
   handleRef?: (handle: BookingSheetHandle) => void;
 }
 
-/* ─── component ─────────────────────────────────────────────────── */
-
 export default function BookingSheet({
   slots,
   onBooked,
   onSlotsRefresh,
   handleRef,
 }: BookingSheetProps): React.ReactElement {
-  const dialogRef = useRef<HTMLDialogElement>(null);
-  const scrollHostRef = useRef<HTMLDivElement>(null);
+  const phoneInputRef = useRef<HTMLInputElement>(null);
 
-  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [isOpen, setIsOpen] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState<Slot | null>(null);
-  const [userId, setUserId] = useState('');
+  const [phone, setPhone] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
-  const dateGroups = groupByDate(slots);
-  const dates = Array.from(dateGroups.keys()).sort();
+  const firstActiveSlot = slots.find((s) => s.is_active === 1) ?? slots[0] ?? null;
 
-  /* Auto-select first available date when sheet opens */
-  const openSheet = useCallback((slot?: Slot): void => {
-    setError(null);
-    setSuccessMsg(null);
-    setUserId('');
-    if (slot) {
-      setSelectedSlot(slot);
-      setSelectedDate(slot.starts_at.slice(0, 10));
-    } else {
-      setSelectedSlot(null);
-      setSelectedDate(dates[0] ?? null);
-    }
-    dialogRef.current?.showModal();
-  }, [dates]);
+  const openSheet = useCallback(
+    (slot?: Slot): void => {
+      setError(null);
+      setSuccessMsg(null);
+      setLoading(false);
+      setPhone('');
+      setSelectedSlot(slot ?? firstActiveSlot);
+      setIsOpen(true);
+    },
+    [firstActiveSlot],
+  );
 
   const closeSheet = useCallback((): void => {
-    dialogRef.current?.close();
+    setIsOpen(false);
   }, []);
 
   /* Expose handle */
@@ -91,51 +75,39 @@ export default function BookingSheet({
     handleRef?.({ open: openSheet, close: closeSheet });
   }, [handleRef, openSheet, closeSheet]);
 
-  /* Close on backdrop click (click outside the sheet panel) */
-  const handleDialogClick = (e: React.MouseEvent<HTMLDialogElement>): void => {
-    if (e.target === dialogRef.current) {
-      closeSheet();
-    }
-  };
-
-  /* Keyboard: Esc is handled natively by <dialog>; trap focus inside */
+  /* ESC closes */
   useEffect(() => {
-    const dialog = dialogRef.current;
-    if (!dialog) return;
-
-    const trapFocus = (e: KeyboardEvent): void => {
-      if (e.key !== 'Tab') return;
-      const focusable = Array.from(
-        dialog.querySelectorAll<HTMLElement>(
-          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
-        ),
-      ).filter((el) => !el.hasAttribute('disabled'));
-      if (focusable.length === 0) return;
-      const first = focusable[0];
-      const last = focusable[focusable.length - 1];
-      if (!first || !last) return;
-      if (e.shiftKey) {
-        if (document.activeElement === first) {
-          e.preventDefault();
-          last.focus();
-        }
-      } else {
-        if (document.activeElement === last) {
-          e.preventDefault();
-          first.focus();
-        }
-      }
+    if (!isOpen) return;
+    const onKeyDown = (e: KeyboardEvent): void => {
+      if (e.key === 'Escape') closeSheet();
     };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [isOpen, closeSheet]);
 
-    dialog.addEventListener('keydown', trapFocus);
-    return () => dialog.removeEventListener('keydown', trapFocus);
-  }, []);
+  /* Prevent background scroll while open */
+  useEffect(() => {
+    if (!isOpen) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [isOpen]);
 
-  /* ── booking POST ──────────────────────────────────────────────── */
+  /* Focus phone input when opened */
+  useEffect(() => {
+    if (!isOpen) return;
+    const t = window.setTimeout(() => phoneInputRef.current?.focus(), 50);
+    return () => window.clearTimeout(t);
+  }, [isOpen]);
 
   const handleConfirm = async (e: React.FormEvent): Promise<void> => {
     e.preventDefault();
-    if (!selectedSlot || !userId.trim()) return;
+    if (!selectedSlot) return;
+
+    const userId = phone.trim();
+    if (!userId) return;
 
     setLoading(true);
     setError(null);
@@ -147,7 +119,7 @@ export default function BookingSheet({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           slot_id: selectedSlot.id,
-          user_id: userId.trim(),
+          user_id: userId,
           idempotency_key: generateIdempotencyKey(),
         }),
       });
@@ -156,7 +128,6 @@ export default function BookingSheet({
         const data = (await res.json()) as { booking: Booking };
         setSuccessMsg('Booking confirmed!');
         onBooked(data.booking);
-        setTimeout(() => closeSheet(), 900);
       } else if (res.status === 409) {
         setError('This slot was just booked. Refreshing availability…');
         onSlotsRefresh();
@@ -170,137 +141,64 @@ export default function BookingSheet({
     }
   };
 
-  const slotsForDate = selectedDate ? (dateGroups.get(selectedDate) ?? []) : [];
-
-  /* ── render ────────────────────────────────────────────────────── */
-
   return (
-    <dialog
-      ref={dialogRef}
-      className="booking-sheet-dialog"
-      aria-label="Book a slot"
-      onClick={handleDialogClick}
-    >
-      {/* Scroll host with CSS scroll-snap: peek → half → full */}
-      <div ref={scrollHostRef} className="booking-sheet-scroll-host">
+    <div className={`booking-drawer${isOpen ? ' is-open' : ''}`} aria-hidden={!isOpen}>
+      <div className="booking-drawer-backdrop" onClick={closeSheet} />
 
-        {/* Peek sentinel — snapping to this position = closed/peek */}
-        <div className="booking-sheet-snap-peek" aria-hidden="true" />
+      <div
+        className="booking-drawer-panel"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Book a session"
+        onClick={(e) => {
+          e.stopPropagation();
+        }}
+      >
+        {/* Drag handle */}
+        <div className="booking-sheet-handle" aria-hidden="true" />
 
-        {/* Half panel snap point */}
-        <div className="booking-sheet-snap-half" aria-hidden="true" />
-
-        {/* Full panel — the visible sheet */}
-        <div className="booking-sheet-panel booking-sheet-snap-full" role="document">
-          {/* Drag handle */}
-          <div className="booking-sheet-handle" aria-hidden="true" />
-
-          {/* Close button */}
-          <button
-            className="booking-sheet-close"
-            onClick={closeSheet}
-            aria-label="Close booking sheet"
+        {/* Close button */}
+        <button className="booking-sheet-close" onClick={closeSheet} aria-label="Close booking sheet">
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
           >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <line x1="18" y1="6" x2="6" y2="18" />
-              <line x1="6" y1="6" x2="18" y2="18" />
-            </svg>
-          </button>
+            <line x1="18" y1="6" x2="6" y2="18" />
+            <line x1="6" y1="6" x2="18" y2="18" />
+          </svg>
+        </button>
 
-          <h2 className="booking-sheet-title">Book a slot</h2>
+        <h2 className="booking-sheet-title">Book a session</h2>
 
-          {/* ── Date chips (horizontal scroll-snap) ── */}
-          {dates.length > 0 && (
-            <section aria-label="Select date" className="booking-sheet-date-section">
-              <p className="booking-sheet-section-label">Date</p>
-              <div className="booking-sheet-date-strip" role="list">
-                {dates.map((d) => (
-                  <button
-                    key={d}
-                    role="listitem"
-                    aria-pressed={selectedDate === d}
-                    className={`booking-sheet-date-chip${selectedDate === d ? ' is-selected' : ''}`}
-                    onClick={() => {
-                      setSelectedDate(d);
-                      setSelectedSlot(null);
-                      setError(null);
-                    }}
-                  >
-                    <span className="booking-sheet-date-chip__dow">
-                      {new Date(d + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short' })}
-                    </span>
-                    <span className="booking-sheet-date-chip__day">
-                      {new Date(d + 'T00:00:00').getDate()}
-                    </span>
-                  </button>
-                ))}
-              </div>
-            </section>
-          )}
+        {selectedSlot && (
+          <div className="booking-sheet-summary" aria-live="polite">
+            <span>
+              {formatDate(selectedSlot.starts_at)} · {formatTime(selectedSlot.starts_at)} · {selectedSlot.duration_m} min
+            </span>
+          </div>
+        )}
 
-          {/* ── Time chips (2-column grid) ── */}
-          {selectedDate && (
-            <section aria-label="Select time" className="booking-sheet-time-section">
-              <p className="booking-sheet-section-label">Time</p>
-              <div className="booking-sheet-time-grid" role="list">
-                {slotsForDate.map((slot, i) => {
-                  const available = slot.is_active === 1;
-                  return (
-                    <button
-                      key={slot.id}
-                      role="listitem"
-                      aria-pressed={selectedSlot?.id === slot.id}
-                      aria-disabled={!available}
-                      disabled={!available}
-                      className={[
-                        'booking-sheet-time-chip',
-                        !available ? 'is-unavailable' : '',
-                        selectedSlot?.id === slot.id ? 'is-selected' : '',
-                      ]
-                        .filter(Boolean)
-                        .join(' ')}
-                      style={{ '--chip-index': i } as React.CSSProperties}
-                      onClick={() => {
-                        if (!available) return;
-                        setSelectedSlot(slot);
-                        setError(null);
-                      }}
-                    >
-                      <span>{formatTime(slot.starts_at)}</span>
-                      <span className="booking-sheet-time-chip__dur">{slot.duration_m}m</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </section>
-          )}
-
-          {/* ── Selected slot summary ── */}
-          {selectedSlot && (
-            <div className="booking-sheet-summary" aria-live="polite">
-              <span>
-                {formatDate(selectedSlot.starts_at)} · {formatTime(selectedSlot.starts_at)} · {selectedSlot.duration_m} min
-              </span>
-            </div>
-          )}
-
-          {/* ── Confirm form ── */}
-          <form
-            onSubmit={(e) => void handleConfirm(e)}
-            className="booking-sheet-form"
-            aria-label="Confirm booking"
-          >
-            <label htmlFor="bs-user-id" className="booking-sheet-form__label">
-              Your name or email
+        {!successMsg ? (
+          <form onSubmit={(e) => void handleConfirm(e)} className="booking-sheet-form" aria-label="Confirm booking">
+            <label htmlFor="bs-user-phone" className="booking-sheet-form__label">
+              Phone number
             </label>
             <input
-              id="bs-user-id"
-              type="text"
-              value={userId}
-              onChange={(e) => setUserId(e.target.value)}
-              placeholder="e.g. jane@example.com"
+              ref={phoneInputRef}
+              id="bs-user-phone"
+              type="tel"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              placeholder="+421 ..."
               required
-              autoComplete="email"
+              autoComplete="tel"
               className="booking-sheet-form__input"
             />
 
@@ -310,22 +208,43 @@ export default function BookingSheet({
               </p>
             )}
 
-            {successMsg && (
-              <p role="status" className="booking-sheet-form__success">
-                {successMsg}
-              </p>
-            )}
-
             <button
               type="submit"
-              disabled={loading || !selectedSlot || !userId.trim()}
+              disabled={loading || !selectedSlot || !phone.trim()}
               className="booking-sheet-form__submit"
             >
-              {loading ? 'Booking…' : 'Confirm booking'}
+              {loading ? 'Booking…' : 'Submit'}
             </button>
           </form>
-        </div>
+        ) : (
+          <div className="space-y-4">
+            <p role="status" className="booking-sheet-form__success">
+              {successMsg}
+            </p>
+
+            <div className="booking-sheet-directions">
+              <div className="booking-sheet-map-preview" aria-hidden="true">
+                <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0Z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 10a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" />
+                </svg>
+              </div>
+              <div className="flex flex-col gap-1">
+                <p className="text-sm font-semibold text-gray-900">How to get there</p>
+                <p className="text-xs text-gray-500">{DIRECTIONS_ADDRESS}</p>
+                <a
+                  href={GOOGLE_MAPS_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="booking-sheet-direction-link"
+                >
+                  Get directions
+                </a>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
-    </dialog>
+    </div>
   );
 }

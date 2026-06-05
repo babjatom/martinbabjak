@@ -80,13 +80,7 @@ export default function MyReservations(): React.ReactElement {
     }
   };
 
-  if (loading) {
-    return (
-      <section className="py-8 px-4 max-w-5xl mx-auto w-full" aria-label="My reservations">
-        <p className="text-sm text-gray-400">Loading reservations…</p>
-      </section>
-    );
-  }
+  if (loading) return <></>;
 
   if (bookings.length === 0) return <></>;
 
