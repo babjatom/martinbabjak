@@ -1,0 +1,132 @@
+name: Issue Reviewer
+
+on:
+  issues:
+    types: [opened, labeled]
+
+jobs:
+  review:
+    if: |
+      !contains(github.event.issue.labels.*.name, 'issue-reviewed') &&
+      (contains(github.event.issue.labels.*.name, 'api') ||
+       contains(github.event.issue.labels.*.name, 'web'))
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+
+    steps:
+      - name: Determine lane
+        id: lane
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const labels = context.payload.issue.labels.map((l) =>
+              typeof l === 'string' ? l : l.name
+            );
+            core.setOutput('name', labels.includes('web') ? 'web' : 'api');
+
+      - name: Generate review questions
+        id: review
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          LANE: ${{ steps.lane.outputs.name }}
+          ISSUE_TITLE: ${{ github.event.issue.title }}
+          ISSUE_BODY: ${{ github.event.issue.body }}
+        run: |
+          if [ "$LANE" = "web" ]; then
+            LANE_PROMPT="This is a **web** lane issue (Next.js 14 / React / Tailwind frontend).
+
+          The web issue template requires these sections:
+          - **Scope**: what to build, with explicit \"Out of scope\" bullets
+          - **Files**: bullet list of file paths the agent may edit
+          - **Acceptance**: checklist of done criteria
+          - **Agent briefing**: frozen architectural facts (BookingSheet entry point, API config, hooks, demo seeds)
+
+          Ask questions that uncover any of the following gaps:
+          - Missing or vague Scope / Out-of-scope bullets
+          - Missing Files list (agent needs exact paths to avoid repo-wide search)
+          - Unclear or missing acceptance criteria
+          - Entry points not named (e.g. which component to start from, which hook to extend)
+          - Expected UI behaviour not described (states, error handling, loading)
+          - Dependency on another issue not declared"
+          else
+            LANE_PROMPT="This is an **api** lane issue (Node.js / Express / Postgres backend).
+
+          The api issue template requires:
+          - **Requirements**: acceptance criteria, exact endpoint paths, request/response shapes, domain rules
+          - **Notes**: optional context, links, edge cases
+
+          Ask questions that uncover any of the following gaps:
+          - Missing or ambiguous endpoint paths (method + path + status codes)
+          - Request body / response shape not specified
+          - Validation rules not described (required fields, formats, constraints)
+          - Missing error cases (404, 409, 400 scenarios)
+          - DB schema changes not described (new columns, indexes, migrations)
+          - Idempotency or concurrency behaviour not specified"
+          fi
+
+          SYSTEM_PROMPT="You are a technical reviewer for a software project that uses an AI coding agent to implement GitHub issues. Your job is to read a new issue and ask targeted clarifying questions that will help the coding agent implement it correctly and efficiently — without needing to ask mid-task.
+
+          Rules:
+          - Ask only questions that are genuinely missing from the issue. Do not invent requirements.
+          - If the issue is complete and unambiguous, say so clearly and do NOT ask fake questions.
+          - Be concise. Max 6 questions. Use a numbered list.
+          - Format your response as a GitHub comment (Markdown). Start with one sentence summarising your overall assessment.
+          - End with: \"Once these are answered, trigger the agent with \`@claude\` or \`@cursor\`.\", unless the issue is already complete (then say it's ready).
+          - Never mention your own model name or that you are an AI reviewer in the response."
+
+          USER_PROMPT="${LANE_PROMPT}
+
+          ---
+
+          Issue title: ${ISSUE_TITLE}
+
+          Issue body:
+          ${ISSUE_BODY}"
+
+          PAYLOAD=$(jq -n \
+            --arg system "$SYSTEM_PROMPT" \
+            --arg user "$USER_PROMPT" \
+            '{
+              model: "claude-haiku-4-5-20251001",
+              max_tokens: 1024,
+              system: $system,
+              messages: [{ role: "user", content: $user }]
+            }')
+
+          RESPONSE=$(curl -s https://api.anthropic.com/v1/messages \
+            -H "x-api-key: ${ANTHROPIC_API_KEY}" \
+            -H "anthropic-version: 2023-06-01" \
+            -H "content-type: application/json" \
+            -d "$PAYLOAD")
+
+          COMMENT=$(echo "$RESPONSE" | jq -r '.content[0].text // "⚠️ Reviewer could not generate a response. Check ANTHROPIC_API_KEY secret."')
+
+          # Write to file to avoid env var size limits
+          echo "$COMMENT" > /tmp/review_comment.md
+
+      - name: Post comment
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh issue comment ${{ github.event.issue.number }} \
+            --repo ${{ github.repository }} \
+            --body-file /tmp/review_comment.md
+
+      - name: Ensure issue-reviewed label exists
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh label create "issue-reviewed" \
+            --repo ${{ github.repository }} \
+            --description "AI reviewer has checked this issue" \
+            --color "0075ca" \
+            2>/dev/null || true
+
+      - name: Add issue-reviewed label
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh issue edit ${{ github.event.issue.number }} \
+            --repo ${{ github.repository }} \
+            --add-label "issue-reviewed"
