@@ -119,7 +119,6 @@
         position: fixed;
         z-index: 2;
         top: clamp(0.85rem, 2.5vw, 1.35rem);
-        right: clamp(0.85rem, 2.5vw, 1.35rem);
         width: 2.25rem;
         height: 2.25rem;
         margin: 0;
@@ -133,7 +132,16 @@
         place-items: center;
         backdrop-filter: blur(8px);
         -webkit-backdrop-filter: blur(8px);
-        transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+        transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease,
+          opacity 0.15s ease;
+      }
+
+      .transport-left {
+        left: clamp(0.85rem, 2.5vw, 1.35rem);
+      }
+
+      .transport-right {
+        right: clamp(0.85rem, 2.5vw, 1.35rem);
       }
 
       .transport:hover {
@@ -161,6 +169,10 @@
       .transport[aria-pressed="false"] .icon-play {
         display: none;
       }
+
+      #companion[aria-pressed="false"] {
+        opacity: 0.55;
+      }
     </style>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -175,7 +187,35 @@
     <div class="veil" aria-hidden="true"></div>
     <button
       type="button"
-      class="transport"
+      class="transport transport-left"
+      id="companion"
+      aria-label="Show Chihuahua"
+      aria-pressed="false"
+      title="Show Chihuahua"
+    >
+      <svg class="icon-smile" viewBox="0 0 16 16" aria-hidden="true">
+        <circle
+          cx="8"
+          cy="8"
+          r="6.25"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.35"
+        />
+        <circle cx="5.6" cy="6.6" r="0.95" fill="currentColor" />
+        <circle cx="10.4" cy="6.6" r="0.95" fill="currentColor" />
+        <path
+          d="M5.2 9.4c.85 1.35 1.9 2 2.8 2s1.95-.65 2.8-2"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.35"
+          stroke-linecap="round"
+        />
+      </svg>
+    </button>
+    <button
+      type="button"
+      class="transport transport-right"
       id="transport"
       aria-label="Pause fox"
       aria-pressed="false"
@@ -858,7 +898,9 @@
         const chi = pointAlongPath(path, chiT, metrics)
         const chiAhead = pointAlongPath(path, Math.min(1, chiT + 0.01), metrics)
         const chiAngle = Math.atan2(chiAhead.y - chi.y, chiAhead.x - chi.x)
-        drawChihuahua(ctx, chi.x, chi.y, chiAngle, 1, visibility)
+        if (showChihuahua) {
+          drawChihuahua(ctx, chi.x, chi.y, chiAngle, 1, visibility)
+        }
 
         const head = pointAlongPath(path, headT, metrics)
         const ahead = pointAlongPath(path, Math.min(1, headT + 0.01), metrics)
@@ -876,6 +918,7 @@
       const staticCanvas = document.getElementById('static')
       const lightCanvas = document.getElementById('light')
       const transportBtn = document.getElementById('transport')
+      const companionBtn = document.getElementById('companion')
       const snailScoreEl = document.getElementById('snail-score')
       const flowerScoreEl = document.getElementById('flower-score')
       const puckScoreEl = document.getElementById('puck-score')
@@ -887,6 +930,7 @@
       let disposed = false
       let lastClampedHead = 0
       let paused = false
+      let showChihuahua = false
       let frozenHeadDist = 0
       let resumeAtMs = 0
       const scores = { snails: 0, flowers: 0, pucks: 0, sticks: 0 }
@@ -902,6 +946,15 @@
         transportBtn.setAttribute('aria-pressed', paused ? 'true' : 'false')
         transportBtn.setAttribute('aria-label', paused ? 'Play fox' : 'Pause fox')
         transportBtn.title = paused ? 'Play' : 'Pause'
+      }
+
+      function syncCompanionUi() {
+        companionBtn.setAttribute('aria-pressed', showChihuahua ? 'true' : 'false')
+        companionBtn.setAttribute(
+          'aria-label',
+          showChihuahua ? 'Hide Chihuahua' : 'Show Chihuahua',
+        )
+        companionBtn.title = showChihuahua ? 'Hide Chihuahua' : 'Show Chihuahua'
       }
 
       function currentHeadDist(timeMs) {
@@ -983,6 +1036,7 @@
       let runtime = rebuild()
       syncScoreUi()
       syncTransportUi()
+      syncCompanionUi()
 
       function stopLoop() {
         cancelAnimationFrame(frameId)
@@ -1049,6 +1103,12 @@
 
       transportBtn.addEventListener('click', () => {
         setPaused(!paused)
+      })
+
+      companionBtn.addEventListener('click', () => {
+        showChihuahua = !showChihuahua
+        syncCompanionUi()
+        paintFrame(performance.now())
       })
 
       let resizeTimer = 0
