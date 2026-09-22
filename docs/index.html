@@ -389,23 +389,84 @@
         }
       }
 
+      function randomBorderCell(rows, cols, random) {
+        const edge = Math.floor(random() * 4)
+        if (edge === 0) return { r: 0, c: Math.floor(random() * cols) }
+        if (edge === 1) return { r: rows - 1, c: Math.floor(random() * cols) }
+        if (edge === 2) return { r: Math.floor(random() * rows), c: 0 }
+        return { r: Math.floor(random() * rows), c: cols - 1 }
+      }
+
+      function pickOuterSide(cell, rows, cols, random) {
+        const sides = []
+        if (cell.r === 0) sides.push('N')
+        if (cell.r === rows - 1) sides.push('S')
+        if (cell.c === 0) sides.push('W')
+        if (cell.c === cols - 1) sides.push('E')
+        return sides[Math.floor(random() * Math.max(sides.length, 1))] || 'N'
+      }
+
       function pickStartEnd(rows, cols, random) {
         const minDist = Math.max(3, Math.floor((rows + cols) / 3))
-        let start = randomCell(rows, cols, random)
-        let end = randomCell(rows, cols, random)
-        for (let tries = 0; tries < 48; tries++) {
-          end = randomCell(rows, cols, random)
+        let start = randomBorderCell(rows, cols, random)
+        let end = randomBorderCell(rows, cols, random)
+        for (let tries = 0; tries < 64; tries++) {
+          end = randomBorderCell(rows, cols, random)
           const dist =
             Math.abs(start.r - end.r) + Math.abs(start.c - end.c)
-          if (dist >= minDist) break
+          if (
+            dist >= minDist &&
+            !(start.r === end.r && start.c === end.c)
+          ) {
+            break
+          }
         }
         if (start.r === end.r && start.c === end.c) {
           end = {
             r: rows - 1 - start.r,
             c: cols - 1 - start.c,
           }
+          if (end.r !== 0 && end.r !== rows - 1 && end.c !== 0 && end.c !== cols - 1) {
+            end = { r: rows - 1, c: cols - 1 }
+          }
         }
-        return { start, end }
+        return {
+          start,
+          end,
+          startSide: pickOuterSide(start, rows, cols, random),
+          endSide: pickOuterSide(end, rows, cols, random),
+        }
+      }
+
+      function portalOpeningFor(cell, side) {
+        return {
+          r: cell.r,
+          c: cell.c,
+          side,
+        }
+      }
+
+      function isPortalOpen(opening, r, c, side) {
+        return (
+          opening &&
+          opening.r === r &&
+          opening.c === c &&
+          opening.side === side
+        )
+      }
+
+      /** Closed perimeter sides of a portal cell (for colored wall highlight). */
+      function portalHighlightWalls(cell, openSide, cellW, cellH) {
+        const x0 = cell.c * cellW
+        const y0 = cell.r * cellH
+        const x1 = (cell.c + 1) * cellW
+        const y1 = (cell.r + 1) * cellH
+        const walls = []
+        if (openSide !== 'N') walls.push({ x1: x0, y1: y0, x2: x1, y2: y0 })
+        if (openSide !== 'S') walls.push({ x1: x0, y1: y1, x2: x1, y2: y1 })
+        if (openSide !== 'W') walls.push({ x1: x0, y1: y0, x2: x0, y2: y1 })
+        if (openSide !== 'E') walls.push({ x1: x1, y1: y0, x2: x1, y2: y1 })
+        return walls
       }
 
       function buildMazeScene({ width, height, cols, rows, random = Math.random }) {
@@ -442,6 +503,14 @@
           carved++
         }
 
+        const { start, end, startSide, endSide } = pickStartEnd(
+          rows,
+          cols,
+          random,
+        )
+        const startOpen = portalOpeningFor(start, startSide)
+        const endOpen = portalOpeningFor(end, endSide)
+
         const cellW = width / cols
         const cellH = height / rows
         const walls = []
@@ -452,22 +521,39 @@
             const x1 = (c + 1) * cellW
             const y1 = (r + 1) * cellH
             const bits = open[r][c]
-            if ((bits & 1) === 0) {
+            if (
+              (bits & 1) === 0 &&
+              !isPortalOpen(startOpen, r, c, 'N') &&
+              !isPortalOpen(endOpen, r, c, 'N')
+            ) {
               walls.push({ x1: x0, y1: y0, x2: x1, y2: y0 })
             }
-            if ((bits & 4) === 0) {
+            if (
+              (bits & 4) === 0 &&
+              !isPortalOpen(startOpen, r, c, 'W') &&
+              !isPortalOpen(endOpen, r, c, 'W')
+            ) {
               walls.push({ x1: x0, y1: y0, x2: x0, y2: y1 })
             }
-            if (r === rows - 1 && (bits & 2) === 0) {
+            if (
+              r === rows - 1 &&
+              (bits & 2) === 0 &&
+              !isPortalOpen(startOpen, r, c, 'S') &&
+              !isPortalOpen(endOpen, r, c, 'S')
+            ) {
               walls.push({ x1: x0, y1: y1, x2: x1, y2: y1 })
             }
-            if (c === cols - 1 && (bits & 8) === 0) {
+            if (
+              c === cols - 1 &&
+              (bits & 8) === 0 &&
+              !isPortalOpen(startOpen, r, c, 'E') &&
+              !isPortalOpen(endOpen, r, c, 'E')
+            ) {
               walls.push({ x1: x1, y1: y0, x2: x1, y2: y1 })
             }
           }
         }
 
-        const { start, end } = pickStartEnd(rows, cols, random)
         const pathCells = solveMaze(open, start, end)
         const rawPath = pathCells.map((cell) => ({
           x: (cell.c + 0.5) * cellW,
@@ -479,6 +565,14 @@
           path: smoothPolyline(rawPath, cornerRadius),
           cols,
           rows,
+          startPortal: {
+            kind: 'start',
+            walls: portalHighlightWalls(start, startSide, cellW, cellH),
+          },
+          endPortal: {
+            kind: 'end',
+            walls: portalHighlightWalls(end, endSide, cellW, cellH),
+          },
         }
       }
 
@@ -601,41 +695,22 @@
         ctx.stroke()
         ctx.setLineDash([])
 
-        const start = path[0]
-        const end = path[path.length - 1]
-        drawPathEndpoint(ctx, start.x, start.y, colors.primary, v, 'start')
-        drawPathEndpoint(ctx, end.x, end.y, colors.accent, v, 'end')
+        drawPortalWalls(ctx, scene.startPortal, colors.primary, v)
+        drawPortalWalls(ctx, scene.endPortal, colors.accent, v)
       }
 
-      function drawPathEndpoint(ctx, x, y, channel, visibility, kind) {
-        const outer = 11
-        const glow = ctx.createRadialGradient(x, y, 0, x, y, outer + 6)
-        glow.addColorStop(0, hsl(channel, alpha(0.35, visibility)))
-        glow.addColorStop(1, hsl(channel, 0))
-        ctx.fillStyle = glow
+      function drawPortalWalls(ctx, portal, channel, visibility) {
+        if (!portal?.walls?.length) return
+        ctx.lineCap = 'square'
+        ctx.lineJoin = 'miter'
+        ctx.strokeStyle = hsl(channel, alpha(0.75, visibility))
+        ctx.lineWidth = 2.5
         ctx.beginPath()
-        ctx.arc(x, y, outer + 6, 0, Math.PI * 2)
-        ctx.fill()
-
-        ctx.beginPath()
-        ctx.arc(x, y, outer, 0, Math.PI * 2)
-        ctx.strokeStyle = hsl(channel, alpha(0.7, visibility))
-        ctx.lineWidth = 1.75
-        ctx.stroke()
-
-        ctx.beginPath()
-        ctx.arc(x, y, 3.25, 0, Math.PI * 2)
-        ctx.fillStyle = hsl(channel, alpha(0.9, visibility))
-        ctx.fill()
-
-        // Inner ring mark: start = open, end = solid ring
-        if (kind === 'end') {
-          ctx.beginPath()
-          ctx.arc(x, y, 6.5, 0, Math.PI * 2)
-          ctx.strokeStyle = hsl(channel, alpha(0.45, visibility))
-          ctx.lineWidth = 1.25
-          ctx.stroke()
+        for (const wall of portal.walls) {
+          ctx.moveTo(wall.x1, wall.y1)
+          ctx.lineTo(wall.x2, wall.y2)
         }
+        ctx.stroke()
       }
 
       function drawPuck(ctx, x, y, scale, visibility) {
