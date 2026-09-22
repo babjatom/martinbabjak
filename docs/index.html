@@ -576,6 +576,42 @@
         ctx.setLineDash([2, 6])
         ctx.stroke()
         ctx.setLineDash([])
+
+        const start = path[0]
+        const end = path[path.length - 1]
+        drawPathEndpoint(ctx, start.x, start.y, colors.primary, v, 'start')
+        drawPathEndpoint(ctx, end.x, end.y, colors.accent, v, 'end')
+      }
+
+      function drawPathEndpoint(ctx, x, y, channel, visibility, kind) {
+        const outer = 11
+        const glow = ctx.createRadialGradient(x, y, 0, x, y, outer + 6)
+        glow.addColorStop(0, hsl(channel, alpha(0.35, visibility)))
+        glow.addColorStop(1, hsl(channel, 0))
+        ctx.fillStyle = glow
+        ctx.beginPath()
+        ctx.arc(x, y, outer + 6, 0, Math.PI * 2)
+        ctx.fill()
+
+        ctx.beginPath()
+        ctx.arc(x, y, outer, 0, Math.PI * 2)
+        ctx.strokeStyle = hsl(channel, alpha(0.7, visibility))
+        ctx.lineWidth = 1.75
+        ctx.stroke()
+
+        ctx.beginPath()
+        ctx.arc(x, y, 3.25, 0, Math.PI * 2)
+        ctx.fillStyle = hsl(channel, alpha(0.9, visibility))
+        ctx.fill()
+
+        // Inner ring mark: start = open, end = solid ring
+        if (kind === 'end') {
+          ctx.beginPath()
+          ctx.arc(x, y, 6.5, 0, Math.PI * 2)
+          ctx.strokeStyle = hsl(channel, alpha(0.45, visibility))
+          ctx.lineWidth = 1.25
+          ctx.stroke()
+        }
       }
 
       function drawPuck(ctx, x, y, scale, visibility) {
