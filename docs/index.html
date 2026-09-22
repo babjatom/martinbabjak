@@ -624,6 +624,31 @@
         }
       }
 
+      function drawFoxHead(ctx, x, y, angle, scale, visibility) {
+        const v = clampMazeVisibility(visibility)
+        ctx.save()
+        ctx.translate(x, y)
+        // Soft warm halo so it still reads as the traveler
+        const glow = ctx.createRadialGradient(0, 0, 0, 0, 0, 26 * scale)
+        glow.addColorStop(0, `hsla(25, 70%, 55%, ${alpha(0.28, v)})`)
+        glow.addColorStop(1, `hsla(25, 70%, 55%, 0)`)
+        ctx.fillStyle = glow
+        ctx.beginPath()
+        ctx.arc(0, 0, 26 * scale, 0, Math.PI * 2)
+        ctx.fill()
+
+        // Face travel direction; emoji looks slightly right by default
+        const facingLeft = Math.cos(angle) < 0
+        ctx.rotate(facingLeft ? angle + Math.PI : angle)
+        if (facingLeft) ctx.scale(-1, 1)
+        ctx.globalAlpha = Math.min(1, alpha(1, v))
+        ctx.font = `${Math.round(28 * scale)}px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif`
+        ctx.textAlign = 'center'
+        ctx.textBaseline = 'middle'
+        ctx.fillText('🦊', 0, 0)
+        ctx.restore()
+      }
+
       function drawLight(
         ctx,
         path,
@@ -653,24 +678,15 @@
           for (let i = 1; i < trail.length; i++) {
             ctx.lineTo(trail[i].x, trail[i].y)
           }
-          ctx.strokeStyle = hsl(colors.accent, alpha(0.45, v))
-          ctx.lineWidth = 2.25
+          ctx.strokeStyle = hsl(colors.accent, alpha(0.28, v))
+          ctx.lineWidth = 1.75
           ctx.stroke()
         }
 
         const head = pointAlongPath(path, headT, metrics)
-        const glow = ctx.createRadialGradient(head.x, head.y, 0, head.x, head.y, 28)
-        glow.addColorStop(0, hsl(colors.accent, alpha(0.55, v)))
-        glow.addColorStop(1, hsl(colors.accent, 0))
-        ctx.fillStyle = glow
-        ctx.beginPath()
-        ctx.arc(head.x, head.y, 28, 0, Math.PI * 2)
-        ctx.fill()
-
-        ctx.fillStyle = hsl(colors.accent, alpha(0.95, v))
-        ctx.beginPath()
-        ctx.arc(head.x, head.y, 3.5, 0, Math.PI * 2)
-        ctx.fill()
+        const ahead = pointAlongPath(path, Math.min(1, headT + 0.01), metrics)
+        const angle = Math.atan2(ahead.y - head.y, ahead.x - head.x)
+        drawFoxHead(ctx, head.x, head.y, angle, 1, visibility)
 
         return clampedHead
       }
