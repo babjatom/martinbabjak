@@ -392,52 +392,47 @@
         }
       }
 
-      function randomBorderCell(rows, cols, random) {
+      function randomBorderPortal(rows, cols, random) {
         const edge = Math.floor(random() * 4)
-        if (edge === 0) return { r: 0, c: Math.floor(random() * cols) }
-        if (edge === 1) return { r: rows - 1, c: Math.floor(random() * cols) }
-        if (edge === 2) return { r: Math.floor(random() * rows), c: 0 }
-        return { r: Math.floor(random() * rows), c: cols - 1 }
-      }
-
-      function pickOuterSide(cell, rows, cols, random) {
-        const sides = []
-        if (cell.r === 0) sides.push('N')
-        if (cell.r === rows - 1) sides.push('S')
-        if (cell.c === 0) sides.push('W')
-        if (cell.c === cols - 1) sides.push('E')
-        return sides[Math.floor(random() * Math.max(sides.length, 1))] || 'N'
+        if (edge === 0) {
+          return { r: 0, c: Math.floor(random() * cols), side: 'N' }
+        }
+        if (edge === 1) {
+          return { r: rows - 1, c: Math.floor(random() * cols), side: 'S' }
+        }
+        if (edge === 2) {
+          return { r: Math.floor(random() * rows), c: 0, side: 'W' }
+        }
+        return { r: Math.floor(random() * rows), c: cols - 1, side: 'E' }
       }
 
       function pickStartEnd(rows, cols, random) {
         const minDist = Math.max(3, Math.floor((rows + cols) / 3))
-        let start = randomBorderCell(rows, cols, random)
-        let end = randomBorderCell(rows, cols, random)
-        for (let tries = 0; tries < 64; tries++) {
-          end = randomBorderCell(rows, cols, random)
+        let start = randomBorderPortal(rows, cols, random)
+        let end = randomBorderPortal(rows, cols, random)
+        for (let tries = 0; tries < 80; tries++) {
+          end = randomBorderPortal(rows, cols, random)
           const dist =
             Math.abs(start.r - end.r) + Math.abs(start.c - end.c)
-          if (
-            dist >= minDist &&
-            !(start.r === end.r && start.c === end.c)
-          ) {
-            break
-          }
+          const differentCell = !(start.r === end.r && start.c === end.c)
+          const differentEdge = start.side !== end.side
+          if (differentCell && differentEdge && dist >= minDist) break
         }
         if (start.r === end.r && start.c === end.c) {
-          end = {
-            r: rows - 1 - start.r,
-            c: cols - 1 - start.c,
-          }
-          if (end.r !== 0 && end.r !== rows - 1 && end.c !== 0 && end.c !== cols - 1) {
-            end = { r: rows - 1, c: cols - 1 }
-          }
+          const opposite = { N: 'S', S: 'N', W: 'E', E: 'W' }
+          const side = opposite[start.side]
+          if (side === 'N') end = { r: 0, c: Math.floor(cols / 2), side }
+          else if (side === 'S')
+            end = { r: rows - 1, c: Math.floor(cols / 2), side }
+          else if (side === 'W')
+            end = { r: Math.floor(rows / 2), c: 0, side }
+          else end = { r: Math.floor(rows / 2), c: cols - 1, side }
         }
         return {
-          start,
-          end,
-          startSide: pickOuterSide(start, rows, cols, random),
-          endSide: pickOuterSide(end, rows, cols, random),
+          start: { r: start.r, c: start.c },
+          end: { r: end.r, c: end.c },
+          startSide: start.side,
+          endSide: end.side,
         }
       }
 
@@ -456,6 +451,20 @@
           opening.c === c &&
           opening.side === side
         )
+      }
+
+      /** Midpoint of the outer wall gap on the viewport edge. */
+      function portalEdgePoint(cell, side, cellW, cellH) {
+        const x0 = cell.c * cellW
+        const y0 = cell.r * cellH
+        const x1 = (cell.c + 1) * cellW
+        const y1 = (cell.r + 1) * cellH
+        const cx = (x0 + x1) / 2
+        const cy = (y0 + y1) / 2
+        if (side === 'N') return { x: cx, y: y0 }
+        if (side === 'S') return { x: cx, y: y1 }
+        if (side === 'W') return { x: x0, y: cy }
+        return { x: x1, y: cy }
       }
 
       /** Closed perimeter sides of a portal cell (for colored wall highlight). */
@@ -558,10 +567,15 @@
         }
 
         const pathCells = solveMaze(open, start, end)
-        const rawPath = pathCells.map((cell) => ({
+        const cellCenters = pathCells.map((cell) => ({
           x: (cell.c + 0.5) * cellW,
           y: (cell.r + 0.5) * cellH,
         }))
+        const rawPath = [
+          portalEdgePoint(start, startSide, cellW, cellH),
+          ...cellCenters,
+          portalEdgePoint(end, endSide, cellW, cellH),
+        ]
         const cornerRadius = Math.min(cellW, cellH) * 0.35
         return {
           walls,
