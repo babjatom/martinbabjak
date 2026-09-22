@@ -12,6 +12,7 @@
         --primary: 98 38% 46%;
         --accent: 185 28% 42%;
         --muted-foreground: 145 10% 62%;
+        --score: 90 12% 88%;
       }
 
       * {
@@ -40,6 +41,8 @@
             transparent 50%
           ),
           hsl(var(--background));
+        font-family: "Barlow Condensed", "Segoe UI Condensed", ui-sans-serif,
+          system-ui, sans-serif;
       }
 
       canvas {
@@ -58,12 +61,65 @@
         pointer-events: none;
         background: hsl(var(--background) / 0.05);
       }
+
+      .score {
+        position: fixed;
+        z-index: 1;
+        bottom: clamp(1rem, 3vw, 1.75rem);
+        margin: 0;
+        pointer-events: none;
+        color: hsl(var(--score) / 0.82);
+        text-shadow: 0 1px 18px hsl(var(--background) / 0.9);
+        letter-spacing: 0.04em;
+        line-height: 1.1;
+        user-select: none;
+      }
+
+      .score-left {
+        left: clamp(1rem, 3vw, 1.75rem);
+        text-align: left;
+      }
+
+      .score-right {
+        right: clamp(1rem, 3vw, 1.75rem);
+        text-align: right;
+      }
+
+      .score .label {
+        display: block;
+        font-size: 0.7rem;
+        font-weight: 500;
+        text-transform: uppercase;
+        letter-spacing: 0.16em;
+        opacity: 0.55;
+      }
+
+      .score .value {
+        display: block;
+        font-size: clamp(1.75rem, 5vw, 2.5rem);
+        font-weight: 600;
+        font-variant-numeric: tabular-nums;
+      }
     </style>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600&display=swap"
+      rel="stylesheet"
+    />
   </head>
   <body>
     <canvas id="static" aria-hidden="true"></canvas>
     <canvas id="light" aria-hidden="true"></canvas>
     <div class="veil" aria-hidden="true"></div>
+    <p class="score score-left" aria-live="polite">
+      <span class="label">Pucks</span>
+      <span class="value" id="puck-score">0</span>
+    </p>
+    <p class="score score-right" aria-live="polite">
+      <span class="label">Sticks</span>
+      <span class="value" id="stick-score">0</span>
+    </p>
     <script>
       /** Port of babjatom tomi-playground ambient maze (domain + light canvas). */
 
@@ -395,13 +451,136 @@
         ctx.setLineDash([])
       }
 
-      function drawLight(ctx, path, metrics, headDist, visibility, colors) {
+      function drawPuck(ctx, x, y, scale, visibility) {
+        const v = clampMazeVisibility(visibility)
+        const r = 7 * scale
+        ctx.save()
+        ctx.translate(x, y)
+        ctx.scale(1, 0.72)
+        ctx.beginPath()
+        ctx.arc(0, 0, r, 0, Math.PI * 2)
+        ctx.fillStyle = `rgba(18, 18, 22, ${alpha(0.92, v)})`
+        ctx.fill()
+        ctx.strokeStyle = `rgba(90, 90, 98, ${alpha(0.55, v)})`
+        ctx.lineWidth = 1.25 / Math.max(scale, 0.01)
+        ctx.stroke()
+        ctx.beginPath()
+        ctx.ellipse(-r * 0.25, -r * 0.28, r * 0.35, r * 0.22, -0.4, 0, Math.PI * 2)
+        ctx.fillStyle = `rgba(255, 255, 255, ${alpha(0.12, v)})`
+        ctx.fill()
+        ctx.restore()
+      }
+
+      function drawStick(ctx, x, y, angle, scale, visibility) {
+        const v = clampMazeVisibility(visibility)
+        ctx.save()
+        ctx.translate(x, y)
+        ctx.rotate(angle)
+        ctx.scale(scale, scale)
+        ctx.lineCap = 'round'
+        ctx.lineJoin = 'round'
+        // shaft
+        ctx.beginPath()
+        ctx.moveTo(-16, 0)
+        ctx.lineTo(10, 0)
+        ctx.strokeStyle = `rgba(168, 124, 72, ${alpha(0.85, v)})`
+        ctx.lineWidth = 2.4
+        ctx.stroke()
+        // blade
+        ctx.beginPath()
+        ctx.moveTo(10, 0)
+        ctx.quadraticCurveTo(16, 0, 18, 7)
+        ctx.strokeStyle = `rgba(210, 210, 218, ${alpha(0.75, v)})`
+        ctx.lineWidth = 2.1
+        ctx.stroke()
+        ctx.restore()
+      }
+
+      function placeCollectibles(path, metrics) {
+        const total = Math.max(metrics.total, 1)
+        const spacing = 110
+        const count = Math.max(4, Math.min(28, Math.floor(total / spacing)))
+        const items = []
+        for (let i = 1; i <= count; i++) {
+          const dist = (total * i) / (count + 1)
+          const t = dist / total
+          const pos = pointAlongPath(path, t, metrics)
+          const ahead = pointAlongPath(path, Math.min(1, t + 0.008), metrics)
+          const angle = Math.atan2(ahead.y - pos.y, ahead.x - pos.x)
+          items.push({
+            type: i % 3 === 0 ? 'stick' : 'puck',
+            x: pos.x,
+            y: pos.y,
+            dist,
+            angle: angle + Math.PI / 2,
+            collected: false,
+            pop: 0,
+          })
+        }
+        return items
+      }
+
+      function resetCollectibles(items) {
+        for (const item of items) {
+          item.collected = false
+          item.pop = 0
+        }
+      }
+
+      function collectNearHead(items, headDist, scores) {
+        const reach = 14
+        for (const item of items) {
+          if (item.collected) continue
+          if (Math.abs(headDist - item.dist) <= reach) {
+            item.collected = true
+            item.pop = 1
+            if (item.type === 'puck') scores.pucks += 1
+            else scores.sticks += 1
+          }
+        }
+      }
+
+      function drawCollectibles(ctx, items, visibility) {
+        for (const item of items) {
+          if (item.collected) {
+            if (item.pop <= 0) continue
+            const scale = 1 + (1 - item.pop) * 0.8
+            const fadeVis = visibility * item.pop
+            if (item.type === 'puck') {
+              drawPuck(ctx, item.x, item.y, scale, fadeVis)
+            } else {
+              drawStick(ctx, item.x, item.y, item.angle, scale, fadeVis)
+            }
+            item.pop = Math.max(0, item.pop - 0.12)
+            continue
+          }
+          if (item.type === 'puck') {
+            drawPuck(ctx, item.x, item.y, 1, visibility)
+          } else {
+            drawStick(ctx, item.x, item.y, item.angle, 1, visibility)
+          }
+        }
+      }
+
+      function drawLight(
+        ctx,
+        path,
+        metrics,
+        headDist,
+        visibility,
+        colors,
+        items,
+      ) {
         if (path.length < 2) return
         const v = clampMazeVisibility(visibility)
         const total = Math.max(metrics.total, 1)
         const clampedHead = ((headDist % total) + total) % total
         const headT = clampedHead / total
         const trailStartT = Math.max(0, clampedHead - TRAIL_PX) / total
+
+        if (items) {
+          drawCollectibles(ctx, items, visibility)
+        }
 
         ctx.lineCap = 'round'
         ctx.lineJoin = 'round'
@@ -430,6 +609,8 @@
         ctx.beginPath()
         ctx.arc(head.x, head.y, 3.5, 0, Math.PI * 2)
         ctx.fill()
+
+        return clampedHead
       }
 
       function reducedMotionQuery() {
@@ -439,11 +620,20 @@
 
       const staticCanvas = document.getElementById('static')
       const lightCanvas = document.getElementById('light')
+      const puckScoreEl = document.getElementById('puck-score')
+      const stickScoreEl = document.getElementById('stick-score')
       const visibility = DEFAULT_MAZE_VISIBILITY
       let viewport = { width: window.innerWidth, height: window.innerHeight }
       let frameId = 0
       let lastPaintMs = 0
       let disposed = false
+      let lastClampedHead = 0
+      const scores = { pucks: 0, sticks: 0 }
+
+      function syncScoreUi() {
+        puckScoreEl.textContent = String(scores.pucks)
+        stickScoreEl.textContent = String(scores.sticks)
+      }
 
       function rebuild() {
         const { width, height } = viewport
@@ -461,12 +651,15 @@
         const metrics = pathMetrics(scene.path)
         const colors = readThemeColors()
         bakeStaticLayer(staticCtx, scene, width, height, visibility, colors)
+        const items = placeCollectibles(scene.path, metrics)
+        lastClampedHead = 0
 
         return {
           lightCtx,
           scene,
           metrics,
           colors,
+          items,
           width,
           height,
           speed: MAZE_LIGHT_SPEED_PX_PER_SEC,
@@ -474,6 +667,7 @@
       }
 
       let runtime = rebuild()
+      syncScoreUi()
 
       function stopLoop() {
         cancelAnimationFrame(frameId)
@@ -496,19 +690,31 @@
             Math.max(runtime.metrics.total, 1) * 0.4,
             visibility,
             runtime.colors,
+            runtime.items,
           )
           return
         }
         if (time - lastPaintMs >= MIN_FRAME_MS) {
           lastPaintMs = time
+          const headDist = (time / 1000) * runtime.speed
+          const total = Math.max(runtime.metrics.total, 1)
+          const clamped = ((headDist % total) + total) % total
+          if (clamped < lastClampedHead - total * 0.25) {
+            resetCollectibles(runtime.items)
+          }
+          lastClampedHead = clamped
+          collectNearHead(runtime.items, clamped, scores)
+          syncScoreUi()
+
           runtime.lightCtx.clearRect(0, 0, runtime.width, runtime.height)
           drawLight(
             runtime.lightCtx,
             runtime.scene.path,
             runtime.metrics,
-            (time / 1000) * runtime.speed,
+            headDist,
             visibility,
             runtime.colors,
+            runtime.items,
           )
         }
         frameId = requestAnimationFrame(paint)
