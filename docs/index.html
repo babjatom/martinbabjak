@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>martinbabjak</title>
+    <meta name="description" content="Ambient maze — martinbabjak" />
+    <style>
+      :root {
+        --background: 150 18% 8%;
+        --foreground: 90 12% 92%;
+        --primary: 98 38% 46%;
+        --accent: 185 28% 42%;
+        --muted-foreground: 145 10% 62%;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        margin: 0;
+        min-height: 100%;
+        height: 100%;
+        overflow: hidden;
+        background: hsl(var(--background));
+        color: hsl(var(--foreground));
+        font-family: "Exo 2", ui-sans-serif, system-ui, sans-serif;
+      }
+
+      body {
+        background:
+          radial-gradient(
+            1200px 600px at 10% -10%,
+            hsl(var(--primary) / 0.14),
+            transparent 55%
+          ),
+          radial-gradient(
+            900px 500px at 100% 0%,
+            hsl(var(--accent) / 0.12),
+            transparent 50%
+          ),
+          hsl(var(--background));
+      }
+
+      canvas {
+        position: fixed;
+        inset: 0;
+        width: 100vw;
+        height: 100dvh;
+        pointer-events: none;
+        z-index: 0;
+      }
+
+      .veil {
+        position: fixed;
+        inset: 0;
+        z-index: 0;
+        pointer-events: none;
+        background: hsl(var(--background) / 0.05);
+      }
+
+      .brand {
+        position: fixed;
+        z-index: 1;
+        left: clamp(1.25rem, 4vw, 2.5rem);
+        bottom: clamp(1.25rem, 4vw, 2.5rem);
+        margin: 0;
+        font-weight: 600;
+        font-size: clamp(1.5rem, 4vw, 2.25rem);
+        letter-spacing: -0.03em;
+        color: hsl(var(--foreground) / 0.88);
+        text-shadow: 0 1px 24px hsl(var(--background) / 0.8);
+      }
+    </style>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Exo+2:wght@500;600&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <canvas id="static" aria-hidden="true"></canvas>
+    <canvas id="light" aria-hidden="true"></canvas>
+    <div class="veil" aria-hidden="true"></div>
+    <p class="brand">martinbabjak</p>
+    <script>
+      /** Port of babjatom tomi-playground ambient maze (domain + light canvas). */
+
+      const TRAIL_PX = 160
+      const RESIZE_DEBOUNCE_MS = 120
+      const MIN_FRAME_MS = 50
+      const MAZE_DPR = 1
+      const BRIGHTNESS_COMPENSATION = 0.96
+      const DEFAULT_MAZE_DENSITY = 4
+      const MOBILE_MAZE_MAX_WIDTH_PX = 1023
+      const MOBILE_MAZE_DENSITY_FACTOR = 0.5
+      const MAZE_LIGHT_SPEED_PX_PER_SEC = 140
+      const DEFAULT_MAZE_VISIBILITY = 1
+      const BASE_MAZE_COLS = 15
+      const BASE_MAZE_ROWS = 9
+      const REF_MAZE_CELL_PX = 96
+      const MAX_MAZE_CELLS =
+        BASE_MAZE_COLS * BASE_MAZE_ROWS * DEFAULT_MAZE_DENSITY ** 2
+
+      const DIRS = [
+        { dr: -1, dc: 0, bit: 1, opposite: 2 },
+        { dr: 1, dc: 0, bit: 2, opposite: 1 },
+        { dr: 0, dc: -1, bit: 4, opposite: 8 },
+        { dr: 0, dc: 1, bit: 8, opposite: 4 },
+      ]
+
+      function key(r, c) {
+        return `${r},${c}`
+      }
+
+      function clampMazeVisibility(value) {
+        if (!Number.isFinite(value)) return DEFAULT_MAZE_VISIBILITY
+        return Math.min(2.5, Math.max(0.25, value))
+      }
+
+      function clampMazeDensity(value) {
+        if (!Number.isFinite(value)) return DEFAULT_MAZE_DENSITY
+        return Math.min(4, Math.max(0.5, value))
+      }
+
+      function effectiveMazeDensity(density, width) {
+        const scale = clampMazeDensity(density)
+        if (width > MOBILE_MAZE_MAX_WIDTH_PX) return scale
+        return clampMazeDensity(scale * MOBILE_MAZE_DENSITY_FACTOR)
+      }
+
+      function densityToGrid(density, width, height) {
+        const scale = effectiveMazeDensity(density, width)
+        const w = Math.max(1, width)
+        const h = Math.max(1, height)
+        const cellSize = REF_MAZE_CELL_PX / scale
+        let cols = Math.max(3, Math.round(w / cellSize))
+        let rows = Math.max(3, Math.round(h / cellSize))
+        const total = cols * rows
+        if (total > MAX_MAZE_CELLS) {
+          const factor = Math.sqrt(MAX_MAZE_CELLS / total)
+          cols = Math.max(3, Math.round(cols * factor))
+          rows = Math.max(3, Math.round(rows * factor))
+        }
+        return { cols, rows }
+      }
+
+      function smoothPolyline(path, radius, samplesPerCorner = 8) {
+        if (path.length < 3 || radius <= 0) {
+          return path.map((p) => ({ ...p }))
+        }
+        const out = [{ ...path[0] }]
+        for (let i = 1; i < path.length - 1; i++) {
+          const prev = path[i - 1]
+          const curr = path[i]
+          const next = path[i + 1]
+          const toPrev = { x: prev.x - curr.x, y: prev.y - curr.y }
+          const toNext = { x: next.x - curr.x, y: next.y - curr.y }
+          const lenPrev = Math.hypot(toPrev.x, toPrev.y)
+          const lenNext = Math.hypot(toNext.x, toNext.y)
+          const r = Math.min(radius, lenPrev * 0.45, lenNext * 0.45)
+          if (r < 0.5 || lenPrev === 0 || lenNext === 0) {
+            out.push({ ...curr })
+            continue
+          }
+          const p1 = {
+            x: curr.x + (toPrev.x / lenPrev) * r,
+            y: curr.y + (toPrev.y / lenPrev) * r,
+          }
+          const p2 = {
+            x: curr.x + (toNext.x / lenNext) * r,
+            y: curr.y + (toNext.y / lenNext) * r,
+          }
+          out.push(p1)
+          for (let s = 1; s <= samplesPerCorner; s++) {
+            const t = s / (samplesPerCorner + 1)
+            const u = 1 - t
+            out.push({
+              x: u * u * p1.x + 2 * u * t * curr.x + t * t * p2.x,
+              y: u * u * p1.y + 2 * u * t * curr.y + t * t * p2.y,
+            })
+          }
+          out.push(p2)
+        }
+        out.push({ ...path[path.length - 1] })
+        return out
+      }
+
+      function solveMaze(open, start, end) {
+        const rows = open.length
+        const cols = open[0].length
+        const prev = new Map()
+        const queue = [start]
+        prev.set(key(start.r, start.c), null)
+        while (queue.length > 0) {
+          const cur = queue.shift()
+          if (cur.r === end.r && cur.c === end.c) break
+          for (const dir of DIRS) {
+            if ((open[cur.r][cur.c] & dir.bit) === 0) continue
+            const nr = cur.r + dir.dr
+            const nc = cur.c + dir.dc
+            if (nr < 0 || nr >= rows || nc < 0 || nc >= cols) continue
+            const nextKey = key(nr, nc)
+            if (prev.has(nextKey)) continue
+            prev.set(nextKey, key(cur.r, cur.c))
+            queue.push({ r: nr, c: nc })
+          }
+        }
+        const path = []
+        let cursor = key(end.r, end.c)
+        if (!prev.has(cursor)) return [start, end]
+        while (cursor) {
+          const [r, c] = cursor.split(',').map(Number)
+          path.push({ r, c })
+          cursor = prev.get(cursor) ?? null
+        }
+        path.reverse()
+        return path
+      }
+
+      function buildMazeScene({ width, height, cols, rows, random = Math.random }) {
+        const open = Array.from({ length: rows }, () =>
+          Array.from({ length: cols }, () => 0),
+        )
+        const visited = Array.from({ length: rows }, () =>
+          Array.from({ length: cols }, () => false),
+        )
+        const stack = [{ r: 0, c: 0 }]
+        visited[0][0] = true
+        let carved = 1
+        const total = rows * cols
+        while (carved < total) {
+          const current = stack[stack.length - 1]
+          const neighbors = []
+          for (const dir of DIRS) {
+            const nr = current.r + dir.dr
+            const nc = current.c + dir.dc
+            if (nr < 0 || nr >= rows || nc < 0 || nc >= cols) continue
+            if (visited[nr][nc]) continue
+            neighbors.push({ cell: { r: nr, c: nc }, dir })
+          }
+          if (neighbors.length === 0) {
+            stack.pop()
+            continue
+          }
+          const pick = neighbors[Math.floor(random() * neighbors.length)]
+          open[current.r][current.c] |= pick.dir.bit
+          open[pick.cell.r][pick.cell.c] |= pick.dir.opposite
+          visited[pick.cell.r][pick.cell.c] = true
+          stack.push(pick.cell)
+          carved++
+        }
+
+        const cellW = width / cols
+        const cellH = height / rows
+        const walls = []
+        for (let r = 0; r < rows; r++) {
+          for (let c = 0; c < cols; c++) {
+            const x0 = c * cellW
+            const y0 = r * cellH
+            const x1 = (c + 1) * cellW
+            const y1 = (r + 1) * cellH
+            const bits = open[r][c]
+            if ((bits & 1) === 0) {
+              walls.push({ x1: x0, y1: y0, x2: x1, y2: y0 })
+            }
+            if ((bits & 4) === 0) {
+              walls.push({ x1: x0, y1: y0, x2: x0, y2: y1 })
+            }
+            if (r === rows - 1 && (bits & 2) === 0) {
+              walls.push({ x1: x0, y1: y1, x2: x1, y2: y1 })
+            }
+            if (c === cols - 1 && (bits & 8) === 0) {
+              walls.push({ x1: x1, y1: y0, x2: x1, y2: y1 })
+            }
+          }
+        }
+
+        const pathCells = solveMaze(
+          open,
+          { r: 0, c: 0 },
+          { r: rows - 1, c: cols - 1 },
+        )
+        const rawPath = pathCells.map((cell) => ({
+          x: (cell.c + 0.5) * cellW,
+          y: (cell.r + 0.5) * cellH,
+        }))
+        const cornerRadius = Math.min(cellW, cellH) * 0.35
+        return {
+          walls,
+          path: smoothPolyline(rawPath, cornerRadius),
+          cols,
+          rows,
+        }
+      }
+
+      function pathMetrics(path) {
+        const distances = [0]
+        let total = 0
+        for (let i = 1; i < path.length; i++) {
+          total += Math.hypot(
+            path[i].x - path[i - 1].x,
+            path[i].y - path[i - 1].y,
+          )
+          distances.push(total)
+        }
+        return { total, distances }
+      }
+
+      function pointAlongPath(path, t, metrics) {
+        if (path.length === 0) return { x: 0, y: 0 }
+        if (path.length === 1) return { ...path[0] }
+        const m = metrics ?? pathMetrics(path)
+        if (m.total <= 0) return { ...path[0] }
+        const target = Math.min(1, Math.max(0, t)) * m.total
+        let i = 1
+        while (i < m.distances.length && m.distances[i] < target) i++
+        const a = path[i - 1]
+        const b = path[Math.min(i, path.length - 1)]
+        const segmentStart = m.distances[i - 1]
+        const segmentLen =
+          m.distances[Math.min(i, m.distances.length - 1)] - segmentStart
+        const local = segmentLen > 0 ? (target - segmentStart) / segmentLen : 0
+        return {
+          x: a.x + (b.x - a.x) * local,
+          y: a.y + (b.y - a.y) * local,
+        }
+      }
+
+      function trailAlongPath(path, t0, t1, metrics) {
+        if (path.length === 0) return []
+        if (path.length === 1) return [{ ...path[0] }]
+        const m = metrics ?? pathMetrics(path)
+        if (m.total <= 0) return [{ ...path[0] }]
+        const startT = Math.min(1, Math.max(0, Math.min(t0, t1)))
+        const endT = Math.min(1, Math.max(0, Math.max(t0, t1)))
+        const startDist = startT * m.total
+        const endDist = endT * m.total
+        const points = [pointAlongPath(path, startT, m)]
+        for (let i = 0; i < path.length; i++) {
+          const d = m.distances[i]
+          if (d > startDist + 1e-4 && d < endDist - 1e-4) {
+            points.push(path[i])
+          }
+        }
+        const head = pointAlongPath(path, endT, m)
+        const last = points[points.length - 1]
+        if (
+          !last ||
+          Math.abs(last.x - head.x) > 1e-4 ||
+          Math.abs(last.y - head.y) > 1e-4
+        ) {
+          points.push(head)
+        }
+        return points
+      }
+
+      function hsl(channel, alphaValue) {
+        if (!channel) return `rgba(255,255,255,${alphaValue})`
+        return `hsl(${channel} / ${alphaValue})`
+      }
+
+      function alpha(base, visibility) {
+        return Math.min(1, base * visibility * BRIGHTNESS_COMPENSATION)
+      }
+
+      function readThemeColors() {
+        const styles = getComputedStyle(document.documentElement)
+        return {
+          primary: styles.getPropertyValue('--primary').trim(),
+          accent: styles.getPropertyValue('--accent').trim(),
+          muted: styles.getPropertyValue('--muted-foreground').trim(),
+        }
+      }
+
+      function sizeCanvas(canvas, width, height, dpr) {
+        canvas.width = Math.floor(width * dpr)
+        canvas.height = Math.floor(height * dpr)
+        canvas.style.width = `${width}px`
+        canvas.style.height = `${height}px`
+        const ctx = canvas.getContext('2d')
+        if (!ctx) return null
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+        return ctx
+      }
+
+      function bakeStaticLayer(ctx, scene, width, height, visibility, colors) {
+        ctx.clearRect(0, 0, width, height)
+        const v = clampMazeVisibility(visibility)
+        ctx.lineCap = 'square'
+        ctx.lineJoin = 'miter'
+        ctx.strokeStyle = hsl(colors.muted, alpha(0.2, v))
+        ctx.lineWidth = 1.25
+        ctx.beginPath()
+        for (const wall of scene.walls) {
+          ctx.moveTo(wall.x1, wall.y1)
+          ctx.lineTo(wall.x2, wall.y2)
+        }
+        ctx.stroke()
+
+        const { path } = scene
+        if (path.length < 2) return
+        ctx.lineCap = 'round'
+        ctx.lineJoin = 'round'
+        ctx.beginPath()
+        ctx.moveTo(path[0].x, path[0].y)
+        for (let i = 1; i < path.length; i++) {
+          ctx.lineTo(path[i].x, path[i].y)
+        }
+        ctx.strokeStyle = hsl(colors.primary, alpha(0.12, v))
+        ctx.lineWidth = 1.5
+        ctx.setLineDash([2, 6])
+        ctx.stroke()
+        ctx.setLineDash([])
+      }
+
+      function drawLight(ctx, path, metrics, headDist, visibility, colors) {
+        if (path.length < 2) return
+        const v = clampMazeVisibility(visibility)
+        const total = Math.max(metrics.total, 1)
+        const clampedHead = ((headDist % total) + total) % total
+        const headT = clampedHead / total
+        const trailStartT = Math.max(0, clampedHead - TRAIL_PX) / total
+
+        ctx.lineCap = 'round'
+        ctx.lineJoin = 'round'
+        const trail = trailAlongPath(path, trailStartT, headT, metrics)
+        if (trail.length >= 2) {
+          ctx.beginPath()
+          ctx.moveTo(trail[0].x, trail[0].y)
+          for (let i = 1; i < trail.length; i++) {
+            ctx.lineTo(trail[i].x, trail[i].y)
+          }
+          ctx.strokeStyle = hsl(colors.accent, alpha(0.45, v))
+          ctx.lineWidth = 2.25
+          ctx.stroke()
+        }
+
+        const head = pointAlongPath(path, headT, metrics)
+        const glow = ctx.createRadialGradient(head.x, head.y, 0, head.x, head.y, 28)
+        glow.addColorStop(0, hsl(colors.accent, alpha(0.55, v)))
+        glow.addColorStop(1, hsl(colors.accent, 0))
+        ctx.fillStyle = glow
+        ctx.beginPath()
+        ctx.arc(head.x, head.y, 28, 0, Math.PI * 2)
+        ctx.fill()
+
+        ctx.fillStyle = hsl(colors.accent, alpha(0.95, v))
+        ctx.beginPath()
+        ctx.arc(head.x, head.y, 3.5, 0, Math.PI * 2)
+        ctx.fill()
+      }
+
+      function reducedMotionQuery() {
+        if (typeof window.matchMedia !== 'function') return null
+        return window.matchMedia('(prefers-reduced-motion: reduce)')
+      }
+
+      const staticCanvas = document.getElementById('static')
+      const lightCanvas = document.getElementById('light')
+      const visibility = DEFAULT_MAZE_VISIBILITY
+      let viewport = { width: window.innerWidth, height: window.innerHeight }
+      let frameId = 0
+      let lastPaintMs = 0
+      let disposed = false
+
+      function rebuild() {
+        const { width, height } = viewport
+        const grid = densityToGrid(DEFAULT_MAZE_DENSITY, width, height)
+        const staticCtx = sizeCanvas(staticCanvas, width, height, MAZE_DPR)
+        const lightCtx = sizeCanvas(lightCanvas, width, height, MAZE_DPR)
+        if (!staticCtx || !lightCtx) return null
+
+        const scene = buildMazeScene({
+          width,
+          height,
+          cols: grid.cols,
+          rows: grid.rows,
+        })
+        const metrics = pathMetrics(scene.path)
+        const colors = readThemeColors()
+        bakeStaticLayer(staticCtx, scene, width, height, visibility, colors)
+
+        return {
+          lightCtx,
+          scene,
+          metrics,
+          colors,
+          width,
+          height,
+          speed: MAZE_LIGHT_SPEED_PX_PER_SEC,
+        }
+      }
+
+      let runtime = rebuild()
+
+      function stopLoop() {
+        cancelAnimationFrame(frameId)
+        frameId = 0
+      }
+
+      function paint(time) {
+        if (!runtime || disposed || document.hidden) {
+          stopLoop()
+          return
+        }
+        const reduced = reducedMotionQuery()?.matches ?? false
+        if (reduced) {
+          stopLoop()
+          runtime.lightCtx.clearRect(0, 0, runtime.width, runtime.height)
+          drawLight(
+            runtime.lightCtx,
+            runtime.scene.path,
+            runtime.metrics,
+            Math.max(runtime.metrics.total, 1) * 0.4,
+            visibility,
+            runtime.colors,
+          )
+          return
+        }
+        if (time - lastPaintMs >= MIN_FRAME_MS) {
+          lastPaintMs = time
+          runtime.lightCtx.clearRect(0, 0, runtime.width, runtime.height)
+          drawLight(
+            runtime.lightCtx,
+            runtime.scene.path,
+            runtime.metrics,
+            (time / 1000) * runtime.speed,
+            visibility,
+            runtime.colors,
+          )
+        }
+        frameId = requestAnimationFrame(paint)
+      }
+
+      function startLoop() {
+        stopLoop()
+        lastPaintMs = 0
+        if (document.hidden) return
+        frameId = requestAnimationFrame(paint)
+      }
+
+      let resizeTimer = 0
+      window.addEventListener('resize', () => {
+        window.clearTimeout(resizeTimer)
+        resizeTimer = window.setTimeout(() => {
+          viewport = { width: window.innerWidth, height: window.innerHeight }
+          runtime = rebuild()
+          startLoop()
+        }, RESIZE_DEBOUNCE_MS)
+      })
+
+      document.addEventListener('visibilitychange', () => {
+        if (document.hidden) stopLoop()
+        else startLoop()
+      })
+
+      startLoop()
+    </script>
+  </body>
+</html>
