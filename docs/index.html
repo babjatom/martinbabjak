@@ -115,12 +115,21 @@
         font-variant-numeric: tabular-nums;
       }
 
-      .transport {
+      .transport-bar {
         position: fixed;
         z-index: 2;
         top: clamp(0.85rem, 2.5vw, 1.35rem);
-        width: 2.25rem;
-        height: 2.25rem;
+        right: clamp(0.85rem, 2.5vw, 1.35rem);
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        gap: 0.55rem;
+      }
+
+      .transport {
+        position: relative;
+        width: 2.85rem;
+        height: 2.85rem;
         margin: 0;
         padding: 0;
         border: 1px solid hsl(var(--foreground) / 0.12);
@@ -136,14 +145,6 @@
           opacity 0.15s ease;
       }
 
-      .transport-left {
-        left: clamp(0.85rem, 2.5vw, 1.35rem);
-      }
-
-      .transport-right {
-        right: clamp(0.85rem, 2.5vw, 1.35rem);
-      }
-
       .transport:hover {
         background: hsl(var(--background) / 0.65);
         color: hsl(var(--score) / 0.95);
@@ -156,8 +157,8 @@
       }
 
       .transport svg {
-        width: 0.85rem;
-        height: 0.85rem;
+        width: 1.15rem;
+        height: 1.15rem;
         display: block;
       }
 
@@ -185,50 +186,52 @@
     <canvas id="static" aria-hidden="true"></canvas>
     <canvas id="light" aria-hidden="true"></canvas>
     <div class="veil" aria-hidden="true"></div>
-    <button
-      type="button"
-      class="transport transport-left"
-      id="companion"
-      aria-label="Show Chihuahua"
-      aria-pressed="false"
-      title="Show Chihuahua"
-    >
-      <svg class="icon-smile" viewBox="0 0 16 16" aria-hidden="true">
-        <circle
-          cx="8"
-          cy="8"
-          r="6.25"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="1.35"
-        />
-        <circle cx="5.6" cy="6.6" r="0.95" fill="currentColor" />
-        <circle cx="10.4" cy="6.6" r="0.95" fill="currentColor" />
-        <path
-          d="M5.2 9.4c.85 1.35 1.9 2 2.8 2s1.95-.65 2.8-2"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="1.35"
-          stroke-linecap="round"
-        />
-      </svg>
-    </button>
-    <button
-      type="button"
-      class="transport transport-right"
-      id="transport"
-      aria-label="Pause fox"
-      aria-pressed="false"
-      title="Pause"
-    >
-      <svg class="icon-pause" viewBox="0 0 16 16" aria-hidden="true">
-        <rect x="3.5" y="2.5" width="3" height="11" rx="0.75" fill="currentColor" />
-        <rect x="9.5" y="2.5" width="3" height="11" rx="0.75" fill="currentColor" />
-      </svg>
-      <svg class="icon-play" viewBox="0 0 16 16" aria-hidden="true">
-        <path d="M4.5 2.6v10.8L13.2 8 4.5 2.6z" fill="currentColor" />
-      </svg>
-    </button>
+    <div class="transport-bar">
+      <button
+        type="button"
+        class="transport"
+        id="companion"
+        aria-label="Show Chihuahua"
+        aria-pressed="false"
+        title="Show Chihuahua"
+      >
+        <svg class="icon-smile" viewBox="0 0 16 16" aria-hidden="true">
+          <circle
+            cx="8"
+            cy="8"
+            r="6.25"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.35"
+          />
+          <circle cx="5.6" cy="6.6" r="0.95" fill="currentColor" />
+          <circle cx="10.4" cy="6.6" r="0.95" fill="currentColor" />
+          <path
+            d="M5.2 9.4c.85 1.35 1.9 2 2.8 2s1.95-.65 2.8-2"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.35"
+            stroke-linecap="round"
+          />
+        </svg>
+      </button>
+      <button
+        type="button"
+        class="transport"
+        id="transport"
+        aria-label="Pause fox"
+        aria-pressed="false"
+        title="Pause"
+      >
+        <svg class="icon-pause" viewBox="0 0 16 16" aria-hidden="true">
+          <rect x="3.5" y="2.5" width="3" height="11" rx="0.75" fill="currentColor" />
+          <rect x="9.5" y="2.5" width="3" height="11" rx="0.75" fill="currentColor" />
+        </svg>
+        <svg class="icon-play" viewBox="0 0 16 16" aria-hidden="true">
+          <path d="M4.5 2.6v10.8L13.2 8 4.5 2.6z" fill="currentColor" />
+        </svg>
+      </button>
+    </div>
     <div class="scores">
       <p class="score" aria-live="polite">
         <span class="label">Snails</span>
