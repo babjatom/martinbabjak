@@ -114,6 +114,53 @@
         font-weight: 600;
         font-variant-numeric: tabular-nums;
       }
+
+      .transport {
+        position: fixed;
+        z-index: 2;
+        top: clamp(0.85rem, 2.5vw, 1.35rem);
+        right: clamp(0.85rem, 2.5vw, 1.35rem);
+        width: 2.25rem;
+        height: 2.25rem;
+        margin: 0;
+        padding: 0;
+        border: 1px solid hsl(var(--foreground) / 0.12);
+        border-radius: 999px;
+        background: hsl(var(--background) / 0.45);
+        color: hsl(var(--score) / 0.78);
+        cursor: pointer;
+        display: grid;
+        place-items: center;
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
+        transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+      }
+
+      .transport:hover {
+        background: hsl(var(--background) / 0.65);
+        color: hsl(var(--score) / 0.95);
+        border-color: hsl(var(--foreground) / 0.2);
+      }
+
+      .transport:focus-visible {
+        outline: 2px solid hsl(var(--accent) / 0.7);
+        outline-offset: 2px;
+      }
+
+      .transport svg {
+        width: 0.85rem;
+        height: 0.85rem;
+        display: block;
+      }
+
+      .transport .icon-play {
+        margin-left: 1px;
+      }
+
+      .transport[aria-pressed="true"] .icon-pause,
+      .transport[aria-pressed="false"] .icon-play {
+        display: none;
+      }
     </style>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -126,6 +173,22 @@
     <canvas id="static" aria-hidden="true"></canvas>
     <canvas id="light" aria-hidden="true"></canvas>
     <div class="veil" aria-hidden="true"></div>
+    <button
+      type="button"
+      class="transport"
+      id="transport"
+      aria-label="Pause fox"
+      aria-pressed="false"
+      title="Pause"
+    >
+      <svg class="icon-pause" viewBox="0 0 16 16" aria-hidden="true">
+        <rect x="3.5" y="2.5" width="3" height="11" rx="0.75" fill="currentColor" />
+        <rect x="9.5" y="2.5" width="3" height="11" rx="0.75" fill="currentColor" />
+      </svg>
+      <svg class="icon-play" viewBox="0 0 16 16" aria-hidden="true">
+        <path d="M4.5 2.6v10.8L13.2 8 4.5 2.6z" fill="currentColor" />
+      </svg>
+    </button>
     <div class="scores">
       <p class="score" aria-live="polite">
         <span class="label">Snails</span>
@@ -698,6 +761,7 @@
 
       const staticCanvas = document.getElementById('static')
       const lightCanvas = document.getElementById('light')
+      const transportBtn = document.getElementById('transport')
       const snailScoreEl = document.getElementById('snail-score')
       const flowerScoreEl = document.getElementById('flower-score')
       const puckScoreEl = document.getElementById('puck-score')
@@ -708,6 +772,9 @@
       let lastPaintMs = 0
       let disposed = false
       let lastClampedHead = 0
+      let paused = false
+      let frozenHeadDist = 0
+      let resumeAtMs = 0
       const scores = { snails: 0, flowers: 0, pucks: 0, sticks: 0 }
 
       function syncScoreUi() {
@@ -715,6 +782,46 @@
         flowerScoreEl.textContent = String(scores.flowers)
         puckScoreEl.textContent = String(scores.pucks)
         stickScoreEl.textContent = String(scores.sticks)
+      }
+
+      function syncTransportUi() {
+        transportBtn.setAttribute('aria-pressed', paused ? 'true' : 'false')
+        transportBtn.setAttribute('aria-label', paused ? 'Play fox' : 'Pause fox')
+        transportBtn.title = paused ? 'Play' : 'Pause'
+      }
+
+      function currentHeadDist(timeMs) {
+        if (paused) return frozenHeadDist
+        return (
+          frozenHeadDist +
+          ((timeMs - resumeAtMs) / 1000) * (runtime?.speed ?? MAZE_LIGHT_SPEED_PX_PER_SEC)
+        )
+      }
+
+      function paintFrame(timeMs) {
+        if (!runtime) return
+        const headDist = currentHeadDist(timeMs)
+        const total = Math.max(runtime.metrics.total, 1)
+        const clamped = ((headDist % total) + total) % total
+        if (!paused && clamped < lastClampedHead - total * 0.25) {
+          resetCollectibles(runtime.items)
+        }
+        lastClampedHead = clamped
+        if (!paused) {
+          collectNearHead(runtime.items, clamped, scores)
+          syncScoreUi()
+        }
+
+        runtime.lightCtx.clearRect(0, 0, runtime.width, runtime.height)
+        drawLight(
+          runtime.lightCtx,
+          runtime.scene.path,
+          runtime.metrics,
+          headDist,
+          visibility,
+          runtime.colors,
+          runtime.items,
+        )
       }
 
       function rebuild() {
@@ -735,6 +842,8 @@
         bakeStaticLayer(staticCtx, scene, width, height, visibility, colors)
         const items = placeCollectibles(scene.path, metrics)
         lastClampedHead = 0
+        frozenHeadDist = 0
+        resumeAtMs = performance.now()
 
         return {
           lightCtx,
@@ -750,6 +859,7 @@
 
       let runtime = rebuild()
       syncScoreUi()
+      syncTransportUi()
 
       function stopLoop() {
         cancelAnimationFrame(frameId)
@@ -776,28 +886,14 @@
           )
           return
         }
+        if (paused) {
+          stopLoop()
+          paintFrame(time)
+          return
+        }
         if (time - lastPaintMs >= MIN_FRAME_MS) {
           lastPaintMs = time
-          const headDist = (time / 1000) * runtime.speed
-          const total = Math.max(runtime.metrics.total, 1)
-          const clamped = ((headDist % total) + total) % total
-          if (clamped < lastClampedHead - total * 0.25) {
-            resetCollectibles(runtime.items)
-          }
-          lastClampedHead = clamped
-          collectNearHead(runtime.items, clamped, scores)
-          syncScoreUi()
-
-          runtime.lightCtx.clearRect(0, 0, runtime.width, runtime.height)
-          drawLight(
-            runtime.lightCtx,
-            runtime.scene.path,
-            runtime.metrics,
-            headDist,
-            visibility,
-            runtime.colors,
-            runtime.items,
-          )
+          paintFrame(time)
         }
         frameId = requestAnimationFrame(paint)
       }
@@ -805,23 +901,62 @@
       function startLoop() {
         stopLoop()
         lastPaintMs = 0
-        if (document.hidden) return
+        if (document.hidden || paused) {
+          if (runtime && !document.hidden) {
+            paintFrame(performance.now())
+          }
+          return
+        }
         frameId = requestAnimationFrame(paint)
       }
+
+      function setPaused(next) {
+        const now = performance.now()
+        if (next === paused) return
+        if (next) {
+          frozenHeadDist = currentHeadDist(now)
+          paused = true
+        } else {
+          resumeAtMs = now
+          paused = false
+        }
+        syncTransportUi()
+        startLoop()
+      }
+
+      transportBtn.addEventListener('click', () => {
+        setPaused(!paused)
+      })
 
       let resizeTimer = 0
       window.addEventListener('resize', () => {
         window.clearTimeout(resizeTimer)
         resizeTimer = window.setTimeout(() => {
           viewport = { width: window.innerWidth, height: window.innerHeight }
+          const wasPaused = paused
+          const keptDist = currentHeadDist(performance.now())
           runtime = rebuild()
+          frozenHeadDist = keptDist
+          resumeAtMs = performance.now()
+          paused = wasPaused
+          syncTransportUi()
           startLoop()
         }, RESIZE_DEBOUNCE_MS)
       })
 
       document.addEventListener('visibilitychange', () => {
-        if (document.hidden) stopLoop()
-        else startLoop()
+        if (document.hidden) {
+          if (!paused) {
+            frozenHeadDist = currentHeadDist(performance.now())
+            resumeAtMs = performance.now()
+          }
+          stopLoop()
+          return
+        }
+        if (!paused) {
+          resumeAtMs = performance.now()
+        }
+        startLoop()
       })
 
       startLoop()
