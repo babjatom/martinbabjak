@@ -639,13 +639,6 @@
         return items
       }
 
-      function resetCollectibles(items) {
-        for (const item of items) {
-          item.collected = false
-          item.pop = 0
-        }
-      }
-
       function collectNearHead(items, headDist, scores) {
         const reach = 14
         for (const item of items) {
@@ -800,11 +793,20 @@
 
       function paintFrame(timeMs) {
         if (!runtime) return
-        const headDist = currentHeadDist(timeMs)
-        const total = Math.max(runtime.metrics.total, 1)
-        const clamped = ((headDist % total) + total) % total
-        if (!paused && clamped < lastClampedHead - total * 0.25) {
-          resetCollectibles(runtime.items)
+        let headDist = currentHeadDist(timeMs)
+        let total = Math.max(runtime.metrics.total, 1)
+        let clamped = ((headDist % total) + total) % total
+        // Fox finished the path — generate a fresh maze and start again.
+        if (
+          !paused &&
+          lastClampedHead > total * 0.5 &&
+          clamped < lastClampedHead - total * 0.25
+        ) {
+          runtime = rebuild(timeMs)
+          if (!runtime) return
+          headDist = currentHeadDist(timeMs)
+          total = Math.max(runtime.metrics.total, 1)
+          clamped = ((headDist % total) + total) % total
         }
         lastClampedHead = clamped
         if (!paused) {
@@ -824,7 +826,7 @@
         )
       }
 
-      function rebuild() {
+      function rebuild(atMs = performance.now()) {
         const { width, height } = viewport
         const grid = densityToGrid(DEFAULT_MAZE_DENSITY, width, height)
         const staticCtx = sizeCanvas(staticCanvas, width, height, MAZE_DPR)
@@ -843,7 +845,7 @@
         const items = placeCollectibles(scene.path, metrics)
         lastClampedHead = 0
         frozenHeadDist = 0
-        resumeAtMs = performance.now()
+        resumeAtMs = atMs
 
         return {
           lightCtx,
