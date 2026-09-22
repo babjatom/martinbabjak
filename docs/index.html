@@ -62,32 +62,40 @@
         background: hsl(var(--background) / 0.05);
       }
 
-      .score {
+      .scores {
         position: fixed;
         z-index: 1;
+        left: 0;
+        right: 0;
         bottom: clamp(1rem, 3vw, 1.75rem);
+        display: flex;
+        justify-content: space-between;
+        padding: 0 clamp(1rem, 3vw, 1.75rem);
         margin: 0;
         pointer-events: none;
+        gap: 0.75rem;
+      }
+
+      .score {
+        margin: 0;
         color: hsl(var(--score) / 0.82);
         text-shadow: 0 1px 18px hsl(var(--background) / 0.9);
         letter-spacing: 0.04em;
         line-height: 1.1;
         user-select: none;
+        min-width: 0;
       }
 
-      .score-left {
-        left: clamp(1rem, 3vw, 1.75rem);
+      .score:nth-child(1) {
         text-align: left;
       }
 
-      .score-center {
-        left: 50%;
-        transform: translateX(-50%);
+      .score:nth-child(2),
+      .score:nth-child(3) {
         text-align: center;
       }
 
-      .score-right {
-        right: clamp(1rem, 3vw, 1.75rem);
+      .score:nth-child(4) {
         text-align: right;
       }
 
@@ -102,7 +110,7 @@
 
       .score .value {
         display: block;
-        font-size: clamp(1.75rem, 5vw, 2.5rem);
+        font-size: clamp(1.5rem, 4.5vw, 2.35rem);
         font-weight: 600;
         font-variant-numeric: tabular-nums;
       }
@@ -118,18 +126,24 @@
     <canvas id="static" aria-hidden="true"></canvas>
     <canvas id="light" aria-hidden="true"></canvas>
     <div class="veil" aria-hidden="true"></div>
-    <p class="score score-left" aria-live="polite">
-      <span class="label">Snails</span>
-      <span class="value" id="snail-score">0</span>
-    </p>
-    <p class="score score-center" aria-live="polite">
-      <span class="label">Pucks</span>
-      <span class="value" id="puck-score">0</span>
-    </p>
-    <p class="score score-right" aria-live="polite">
-      <span class="label">Sticks</span>
-      <span class="value" id="stick-score">0</span>
-    </p>
+    <div class="scores">
+      <p class="score" aria-live="polite">
+        <span class="label">Snails</span>
+        <span class="value" id="snail-score">0</span>
+      </p>
+      <p class="score" aria-live="polite">
+        <span class="label">Flowers</span>
+        <span class="value" id="flower-score">0</span>
+      </p>
+      <p class="score" aria-live="polite">
+        <span class="label">Pucks</span>
+        <span class="value" id="puck-score">0</span>
+      </p>
+      <p class="score" aria-live="polite">
+        <span class="label">Sticks</span>
+        <span class="value" id="stick-score">0</span>
+      </p>
+    </div>
     <script>
       /** Port of babjatom tomi-playground ambient maze (domain + light canvas). */
 
@@ -517,6 +531,17 @@
         ctx.restore()
       }
 
+      function drawFlower(ctx, x, y, scale, visibility) {
+        const v = clampMazeVisibility(visibility)
+        ctx.save()
+        ctx.globalAlpha = Math.min(1, alpha(1, v))
+        ctx.font = `${Math.round(20 * scale)}px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif`
+        ctx.textAlign = 'center'
+        ctx.textBaseline = 'middle'
+        ctx.fillText('🌸', x, y)
+        ctx.restore()
+      }
+
       function placeCollectibles(path, metrics) {
         const total = Math.max(metrics.total, 1)
         const spacing = 80
@@ -528,9 +553,16 @@
           const pos = pointAlongPath(path, t, metrics)
           const ahead = pointAlongPath(path, Math.min(1, t + 0.008), metrics)
           const angle = Math.atan2(ahead.y - pos.y, ahead.x - pos.x)
-          // ~60% snails, ~20% pucks, ~20% sticks
-          const slot = i % 5
-          const type = slot === 0 ? 'stick' : slot === 1 ? 'puck' : 'snail'
+          // ~50% snails, ~17% flowers, ~17% pucks, ~17% sticks
+          const slot = i % 6
+          const type =
+            slot === 0
+              ? 'stick'
+              : slot === 1
+                ? 'puck'
+                : slot === 2
+                  ? 'flower'
+                  : 'snail'
           items.push({
             type,
             x: pos.x,
@@ -559,6 +591,7 @@
             item.collected = true
             item.pop = 1
             if (item.type === 'snail') scores.snails += 1
+            else if (item.type === 'flower') scores.flowers += 1
             else if (item.type === 'puck') scores.pucks += 1
             else scores.sticks += 1
           }
@@ -568,6 +601,8 @@
       function drawCollectibleItem(ctx, item, scale, visibility) {
         if (item.type === 'snail') {
           drawSnail(ctx, item.x, item.y, scale, visibility)
+        } else if (item.type === 'flower') {
+          drawFlower(ctx, item.x, item.y, scale, visibility)
         } else if (item.type === 'puck') {
           drawPuck(ctx, item.x, item.y, scale, visibility)
         } else {
@@ -648,6 +683,7 @@
       const staticCanvas = document.getElementById('static')
       const lightCanvas = document.getElementById('light')
       const snailScoreEl = document.getElementById('snail-score')
+      const flowerScoreEl = document.getElementById('flower-score')
       const puckScoreEl = document.getElementById('puck-score')
       const stickScoreEl = document.getElementById('stick-score')
       const visibility = DEFAULT_MAZE_VISIBILITY
@@ -656,10 +692,11 @@
       let lastPaintMs = 0
       let disposed = false
       let lastClampedHead = 0
-      const scores = { snails: 0, pucks: 0, sticks: 0 }
+      const scores = { snails: 0, flowers: 0, pucks: 0, sticks: 0 }
 
       function syncScoreUi() {
         snailScoreEl.textContent = String(scores.snails)
+        flowerScoreEl.textContent = String(scores.flowers)
         puckScoreEl.textContent = String(scores.pucks)
         stickScoreEl.textContent = String(scores.sticks)
       }
