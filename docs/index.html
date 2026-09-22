@@ -382,6 +382,32 @@
         return path
       }
 
+      function randomCell(rows, cols, random) {
+        return {
+          r: Math.floor(random() * rows),
+          c: Math.floor(random() * cols),
+        }
+      }
+
+      function pickStartEnd(rows, cols, random) {
+        const minDist = Math.max(3, Math.floor((rows + cols) / 3))
+        let start = randomCell(rows, cols, random)
+        let end = randomCell(rows, cols, random)
+        for (let tries = 0; tries < 48; tries++) {
+          end = randomCell(rows, cols, random)
+          const dist =
+            Math.abs(start.r - end.r) + Math.abs(start.c - end.c)
+          if (dist >= minDist) break
+        }
+        if (start.r === end.r && start.c === end.c) {
+          end = {
+            r: rows - 1 - start.r,
+            c: cols - 1 - start.c,
+          }
+        }
+        return { start, end }
+      }
+
       function buildMazeScene({ width, height, cols, rows, random = Math.random }) {
         const open = Array.from({ length: rows }, () =>
           Array.from({ length: cols }, () => 0),
@@ -389,8 +415,9 @@
         const visited = Array.from({ length: rows }, () =>
           Array.from({ length: cols }, () => false),
         )
-        const stack = [{ r: 0, c: 0 }]
-        visited[0][0] = true
+        const carveOrigin = randomCell(rows, cols, random)
+        const stack = [carveOrigin]
+        visited[carveOrigin.r][carveOrigin.c] = true
         let carved = 1
         const total = rows * cols
         while (carved < total) {
@@ -440,11 +467,8 @@
           }
         }
 
-        const pathCells = solveMaze(
-          open,
-          { r: 0, c: 0 },
-          { r: rows - 1, c: cols - 1 },
-        )
+        const { start, end } = pickStartEnd(rows, cols, random)
+        const pathCells = solveMaze(open, start, end)
         const rawPath = pathCells.map((cell) => ({
           x: (cell.c + 0.5) * cellW,
           y: (cell.r + 0.5) * cellH,
