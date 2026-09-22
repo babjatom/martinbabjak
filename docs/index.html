@@ -80,6 +80,12 @@
         text-align: left;
       }
 
+      .score-center {
+        left: 50%;
+        transform: translateX(-50%);
+        text-align: center;
+      }
+
       .score-right {
         right: clamp(1rem, 3vw, 1.75rem);
         text-align: right;
@@ -113,6 +119,10 @@
     <canvas id="light" aria-hidden="true"></canvas>
     <div class="veil" aria-hidden="true"></div>
     <p class="score score-left" aria-live="polite">
+      <span class="label">Snails</span>
+      <span class="value" id="snail-score">0</span>
+    </p>
+    <p class="score score-center" aria-live="polite">
       <span class="label">Pucks</span>
       <span class="value" id="puck-score">0</span>
     </p>
@@ -496,10 +506,21 @@
         ctx.restore()
       }
 
+      function drawSnail(ctx, x, y, scale, visibility) {
+        const v = clampMazeVisibility(visibility)
+        ctx.save()
+        ctx.globalAlpha = Math.min(1, alpha(1, v))
+        ctx.font = `${Math.round(22 * scale)}px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif`
+        ctx.textAlign = 'center'
+        ctx.textBaseline = 'middle'
+        ctx.fillText('🐌', x, y)
+        ctx.restore()
+      }
+
       function placeCollectibles(path, metrics) {
         const total = Math.max(metrics.total, 1)
-        const spacing = 110
-        const count = Math.max(4, Math.min(28, Math.floor(total / spacing)))
+        const spacing = 80
+        const count = Math.max(6, Math.min(40, Math.floor(total / spacing)))
         const items = []
         for (let i = 1; i <= count; i++) {
           const dist = (total * i) / (count + 1)
@@ -507,8 +528,11 @@
           const pos = pointAlongPath(path, t, metrics)
           const ahead = pointAlongPath(path, Math.min(1, t + 0.008), metrics)
           const angle = Math.atan2(ahead.y - pos.y, ahead.x - pos.x)
+          // ~60% snails, ~20% pucks, ~20% sticks
+          const slot = i % 5
+          const type = slot === 0 ? 'stick' : slot === 1 ? 'puck' : 'snail'
           items.push({
-            type: i % 3 === 0 ? 'stick' : 'puck',
+            type,
             x: pos.x,
             y: pos.y,
             dist,
@@ -534,9 +558,20 @@
           if (Math.abs(headDist - item.dist) <= reach) {
             item.collected = true
             item.pop = 1
-            if (item.type === 'puck') scores.pucks += 1
+            if (item.type === 'snail') scores.snails += 1
+            else if (item.type === 'puck') scores.pucks += 1
             else scores.sticks += 1
           }
+        }
+      }
+
+      function drawCollectibleItem(ctx, item, scale, visibility) {
+        if (item.type === 'snail') {
+          drawSnail(ctx, item.x, item.y, scale, visibility)
+        } else if (item.type === 'puck') {
+          drawPuck(ctx, item.x, item.y, scale, visibility)
+        } else {
+          drawStick(ctx, item.x, item.y, item.angle, scale, visibility)
         }
       }
 
@@ -546,19 +581,11 @@
             if (item.pop <= 0) continue
             const scale = 1 + (1 - item.pop) * 0.8
             const fadeVis = visibility * item.pop
-            if (item.type === 'puck') {
-              drawPuck(ctx, item.x, item.y, scale, fadeVis)
-            } else {
-              drawStick(ctx, item.x, item.y, item.angle, scale, fadeVis)
-            }
+            drawCollectibleItem(ctx, item, scale, fadeVis)
             item.pop = Math.max(0, item.pop - 0.12)
             continue
           }
-          if (item.type === 'puck') {
-            drawPuck(ctx, item.x, item.y, 1, visibility)
-          } else {
-            drawStick(ctx, item.x, item.y, item.angle, 1, visibility)
-          }
+          drawCollectibleItem(ctx, item, 1, visibility)
         }
       }
 
@@ -620,6 +647,7 @@
 
       const staticCanvas = document.getElementById('static')
       const lightCanvas = document.getElementById('light')
+      const snailScoreEl = document.getElementById('snail-score')
       const puckScoreEl = document.getElementById('puck-score')
       const stickScoreEl = document.getElementById('stick-score')
       const visibility = DEFAULT_MAZE_VISIBILITY
@@ -628,9 +656,10 @@
       let lastPaintMs = 0
       let disposed = false
       let lastClampedHead = 0
-      const scores = { pucks: 0, sticks: 0 }
+      const scores = { snails: 0, pucks: 0, sticks: 0 }
 
       function syncScoreUi() {
+        snailScoreEl.textContent = String(scores.snails)
         puckScoreEl.textContent = String(scores.pucks)
         stickScoreEl.textContent = String(scores.sticks)
       }
