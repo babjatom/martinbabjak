@@ -897,6 +897,37 @@
         ctx.restore()
       }
 
+      /** Princess waits at the maze exit; idle bob + glow until the fox arrives. */
+      function drawPrincess(ctx, x, y, angle, scale, visibility, timeMs) {
+        const v = clampMazeVisibility(visibility)
+        const t = (timeMs ?? 0) / 1000
+        const bob = Math.sin(t * 2.2) * 2.4
+        const pulse = 0.2 + 0.1 * (0.5 + 0.5 * Math.sin(t * 2.6))
+        const breathe = 1 + 0.04 * Math.sin(t * 2.2)
+        ctx.save()
+        ctx.translate(x, y + bob)
+        ctx.scale(breathe, breathe)
+
+        const glow = ctx.createRadialGradient(0, 0, 0, 0, 0, 28 * scale)
+        glow.addColorStop(0, `hsla(330, 70%, 62%, ${alpha(pulse, v)})`)
+        glow.addColorStop(1, `hsla(330, 70%, 62%, 0)`)
+        ctx.fillStyle = glow
+        ctx.beginPath()
+        ctx.arc(0, 0, 28 * scale, 0, Math.PI * 2)
+        ctx.fill()
+
+        // Face toward the approaching fox
+        const facingLeft = Math.cos(angle) < 0
+        ctx.rotate(facingLeft ? angle + Math.PI : angle)
+        if (facingLeft) ctx.scale(-1, 1)
+        ctx.globalAlpha = Math.min(1, alpha(1, v))
+        ctx.font = `${Math.round(28 * scale)}px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif`
+        ctx.textAlign = 'center'
+        ctx.textBaseline = 'middle'
+        ctx.fillText('👸', 0, 0)
+        ctx.restore()
+      }
+
       /** Small white Chihuahua, drawn facing +x; caller rotates to path. */
       function drawChihuahua(ctx, x, y, angle, scale, visibility) {
         const v = clampMazeVisibility(visibility)
@@ -1019,6 +1050,7 @@
         visibility,
         colors,
         items,
+        timeMs = 0,
       ) {
         if (path.length < 2) return
         const v = clampMazeVisibility(visibility)
@@ -1044,6 +1076,14 @@
           ctx.lineWidth = 1.75
           ctx.stroke()
         }
+
+        // Princess waits just inside the exit, facing the approaching fox
+        const goalInset = Math.min(22, total * 0.03)
+        const goalT = Math.max(0, (total - goalInset) / total)
+        const goal = pointAlongPath(path, goalT, metrics)
+        const goalLook = pointAlongPath(path, Math.max(0, goalT - 0.02), metrics)
+        const goalAngle = Math.atan2(goalLook.y - goal.y, goalLook.x - goal.x)
+        drawPrincess(ctx, goal.x, goal.y, goalAngle, 1, visibility, timeMs)
 
         const chiDist = Math.max(0, clampedHead - CHI_FOLLOW_PX)
         const chiT = chiDist / total
@@ -1149,6 +1189,7 @@
           visibility,
           runtime.colors,
           runtime.items,
+          timeMs,
         )
       }
 
